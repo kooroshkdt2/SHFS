@@ -24,8 +24,10 @@ var (
 )
 
 func main() {
+	// VERY FIRST: capture any crash before Sentry can init
+	debug.EarlyCrashLog()
+
 	flag.Parse()
-	defer debug.Close()
 
 	var cfg *config.Config
 	var err error
@@ -67,7 +69,7 @@ func main() {
 
 	srv := server.New(cfg, tree)
 	debug.Debug("Server created, port=%d", cfg.Server.Port)
-	log.Printf("Starting SHFS v0.2.0 (headless) on port %d", cfg.Server.Port)
+	log.Printf("Starting SHFS v%s (headless) on port %d", debug.Version, cfg.Server.Port)
 
 	// Wire server log callback to debug
 	srv.LogFn = func(msg string) {

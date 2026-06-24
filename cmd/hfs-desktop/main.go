@@ -32,14 +32,22 @@ import (
 )
 
 func main() {
+	// VERY FIRST: set up crash log BEFORE anything else.
+	// On Windows with -H windowsgui, all stderr is lost — this captures panics to a file.
+	debug.EarlyCrashLog()
+	// Catch any panic and flush to crash log before exit
+	defer debug.RecoverPanic()
+
+	debug.Debug("main: starting, parsing flags")
 	port := flag.Int("port", 0, "HTTP port")
 	root := flag.String("root", "", "Root folder")
 	cfgFile := flag.String("config", "", "Config file path")
 	flag.Parse()
-	defer debug.Close()
 
 	// Init Sentry for crash reporting
+	debug.Debug("main: initializing Sentry")
 	debug.InitSentry()
+	defer debug.Close()
 
 	var cfg *config.Config
 	var err error
@@ -49,28 +57,32 @@ func main() {
 		cfg, err = config.Load()
 	}
 	if err != nil {
-		debug.CaptureError(fmt.Errorf("config: %w", err))
+		debug.CaptureFatal(fmt.Errorf("config: %w", err))
 		log.Fatalf("Config error: %v", err)
 	}
 
 	// Init debug log
 	debug.InitDebugLog(cfg.GetConfigDir())
-	debug.Debug("SHFS desktop starting")
-	debug.Debug("OS: %s config dir: %s", runtime.GOOS, cfg.GetConfigDir())
+	debug.Debug("SHFS desktop v%s starting", debug.Version)
+	debug.Debug("OS: %s Arch: %s", runtime.GOOS, runtime.GOARCH)
+	debug.Debug("Config dir: %s", cfg.GetConfigDir())
 	debug.Debug("Config root: %q", cfg.VFS.Root)
 
 	if *port > 0 {
 		cfg.Server.Port = *port
 	}
 
+	debug.Debug("main: setting up VFS")
 	tree, err := setupVFS(cfg, *root)
 	if err != nil {
-		debug.CaptureError(fmt.Errorf("VFS: %w", err))
+		debug.CaptureFatal(fmt.Errorf("VFS: %w", err))
 		log.Fatalf("VFS error: %v", err)
 	}
 
 	// ---- Single instance check ----
+	debug.Debug("main: checking single instance on port %d", cfg.Server.Port)
 	if instanceAlreadyRunning(cfg.Server.Port) {
+		debug.Debug("main: another instance is running, exiting")
 		log.Println("Another instance is already running. Bringing it to front.")
 		os.Exit(0)
 	}
@@ -78,19 +90,26 @@ func main() {
 	acquireLock(lockFile)
 	defer os.Remove(lockFile)
 
+	debug.Debug("main: creating server")
 	srv := server.New(cfg, tree)
 
 	// Pre-check: is the port available?
 	portAvailable := checkPortAvailable(cfg.Server.Port)
 
+	// ---- Fyne app init (most likely crash point on Windows) ----
+	debug.Debug("main: creating Fyne app")
 	a := app.NewWithID("com.kooroshkdt.shfs")
+	debug.Debug("main: Fyne app created OK, creating window")
 	w := a.NewWindow("SHFS ~ Simple HTTP File Server")
+	debug.Debug("main: window created OK, building UI")
 
 	ui := desktop.NewUI(w, srv, cfg, tree)
 	ui.Build()
+	debug.Debug("main: UI built OK")
 	w.SetContent(ui.Content())
 	w.SetMainMenu(ui.BuildMenu())
 	w.SetIcon(desktop.ResourceShfsIcon())
+	debug.Debug("main: window configured OK")
 
 	// Register /api/show endpoint so second instance can bring this window up
 	srv.HandleFunc("/api/show", func(w2 http.ResponseWriter, r *http.Request) {
@@ -108,6 +127,7 @@ func main() {
 	w.SetMaster()
 
 	// Start the HTTP server in background, notify UI of any errors
+	debug.Debug("main: starting HTTP server in background")
 	serverErr := make(chan error, 1)
 	go func() {
 		if err := srv.Start(); err != nil {
@@ -134,16 +154,22 @@ func main() {
 	}()
 
 	// Show window first, then set up tray after a delay (avoids Windows auto-hide)
+	debug.Debug("main: showing window")
 	w.Show()
 	w.RequestFocus()
 	go func() {
 		time.Sleep(2 * time.Second) // wait for window to fully render
+		debug.Debug("main: setting up tray (delayed)")
 		fyne.DoAndWait(func() {
 			ui.SetupTray()
+			debug.Debug("main: tray setup complete")
 		})
 	}()
+
+	debug.Debug("main: entering event loop (ShowAndRun)")
 	w.ShowAndRun()
 
+	debug.Debug("main: event loop exited, shutting down")
 	log.Println("Shutting down...")
 	srv.Shutdown()
 }
@@ -181,30 +207,42 @@ func setupVFS(cfg *config.Config, cliRoot string) (*vfs.Tree, error) {
 	if rootPath == "" {
 		rootPath = cfg.VFS.Root
 	}
+
+	debug.Debug("setupVFS: raw root=%q", rootPath)
 	rootPath = filepath.ToSlash(filepath.Clean(rootPath))
-	log.Printf("Config root path: %q", rootPath)
+	debug.Debug("setupVFS: normalized root=%q", rootPath)
 
 	if rootPath != "" && rootPath != "." {
 		absRoot, err := filepath.Abs(rootPath)
+		debug.Debug("setupVFS: filepath.Abs(%q) = %q (err=%v)", rootPath, absRoot, err)
 		if err != nil {
 			return nil, fmt.Errorf("resolve root path %q: %w", rootPath, err)
 		}
-		log.Printf("Resolved to: %q", absRoot)
-		if _, err := os.Stat(absRoot); err != nil {
-			return nil, fmt.Errorf("root path %q: %w", absRoot, err)
+
+		info, statErr := os.Stat(absRoot)
+		debug.Debug("setupVFS: os.Stat(%q) err=%v", absRoot, statErr)
+		if statErr != nil {
+			return nil, fmt.Errorf("root path %q: %w", absRoot, statErr)
 		}
+		_ = info
+
+		debug.Debug("setupVFS: creating VFS from path %q", absRoot)
 		log.Printf("Serving from: %s", absRoot)
 		return vfs.NewFromPath(absRoot)
 	}
+
+	// No root specified — load persistent VFS
 	treeFile := cfg.VFS.TreeFile
 	if !filepath.IsAbs(treeFile) {
 		treeFile = filepath.Join(cfg.GetConfigDir(), treeFile)
 	}
+	debug.Debug("setupVFS: loading persisted tree from %s", treeFile)
 	tree, err := vfs.LoadTree(treeFile)
 	if err != nil {
-		log.Printf("Could not load VFS, starting fresh: %v", err)
+		debug.Debug("setupVFS: load failed, starting fresh: %v", err)
 		tree = vfs.New()
 	}
+	debug.Debug("setupVFS: VFS loaded with %d root children", len(tree.Root.Children))
 	return tree, nil
 }
 

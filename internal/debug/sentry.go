@@ -3,6 +3,7 @@ package debug
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,16 +13,58 @@ import (
 	"github.com/getsentry/sentry-go"
 )
 
+const Version = "0.2.1"
+
 var (
-	debugLog *os.File
-	debugDir string
+	debugLog  *os.File
+	crashLog  *os.File
+	debugDir  string
 )
+
+// EarlyCrashLog MUST be called as the very first thing in main(),
+// before any Sentry init or config loading. On Windows with -H windowsgui
+// the console is hidden, so panics are lost. This captures them to a file.
+func EarlyCrashLog() {
+	// Write crash log next to the executable, or in the working directory.
+	// On Windows this is critical since -H windowsgui hides the console.
+	var crashPath string
+	exe, err := os.Executable()
+	if err == nil {
+		crashPath = filepath.Join(filepath.Dir(exe), "shfs-crash.log")
+	} else {
+		crashPath = "shfs-crash.log"
+	}
+
+	f, err := os.OpenFile(crashPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		// Last resort: try temp dir
+		crashPath = filepath.Join(os.TempDir(), "shfs-crash.log")
+		f, err = os.OpenFile(crashPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return // nothing we can do
+		}
+	}
+
+	crashLog = f
+	timestamp := time.Now().Format(time.RFC3339)
+	fmt.Fprintf(f, "=== SHFS v%s Crash Log %s ===\n", Version, timestamp)
+	fmt.Fprintf(f, "OS: %s Arch: %s Go: %s\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
+	fmt.Fprintf(f, "Executable: %s\n", exe)
+	f.Sync()
+
+	// Redirect log output to also write to the crash log.
+	// On Windows with -H windowsgui, stderr/stdout are detached,
+	// so this is the only way to capture log/panic output.
+	log.SetOutput(io.MultiWriter(log.Writer(), f))
+}
 
 // InitSentry initializes Sentry error tracking.
 func InitSentry() {
+	dsn := "https://c0ab26ee01eab325170c4002b86f0971@o4506729220669440.ingest.us.sentry.io/4506729224536064"
+
 	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              "https://c0ab26ee01eab325170c4002b86f0971@o4506729220669440.ingest.us.sentry.io/4506729224536064",
-		Release:          "shfs@0.2.0",
+		Dsn:              dsn,
+		Release:          "shfs@" + Version,
 		Environment:      "production",
 		EnableTracing:    true,
 		TracesSampleRate: 1.0,
@@ -30,6 +73,15 @@ func InitSentry() {
 	})
 	if err != nil {
 		log.Printf("Sentry init: %v", err)
+		if crashLog != nil {
+			fmt.Fprintf(crashLog, "Sentry init failed: %v\n", err)
+		}
+	}
+
+	// Log to crash file that Sentry is initialized
+	if crashLog != nil {
+		fmt.Fprintf(crashLog, "Sentry initialized OK at %s\n", time.Now().Format(time.RFC3339))
+		crashLog.Sync()
 	}
 }
 
@@ -49,7 +101,7 @@ func InitDebugLog(configDir string) {
 	Debug("OS: %s Arch: %s Go: %s", runtime.GOOS, runtime.GOARCH, runtime.Version())
 }
 
-// Debug writes a message to the debug log file.
+// Debug writes a message to the debug log file and crash log.
 func Debug(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	line := time.Now().Format("15:04:05.000") + " " + msg
@@ -57,6 +109,10 @@ func Debug(format string, args ...interface{}) {
 	if debugLog != nil {
 		debugLog.WriteString(line + "\n")
 		debugLog.Sync()
+	}
+	if crashLog != nil {
+		crashLog.WriteString(line + "\n")
+		crashLog.Sync()
 	}
 }
 
@@ -80,8 +136,33 @@ func CaptureError(err error) {
 	if err == nil {
 		return
 	}
-	Debug("ERROR: %v", err)
+	msg := fmt.Sprintf("ERROR: %v", err)
+	Debug("%s", msg)
+	hub := sentry.CurrentHub().Clone()
+	hub.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetLevel(sentry.LevelError)
+	})
+	hub.CaptureException(err)
+}
+
+// CaptureFatal logs a fatal error, flushes Sentry, and exits.
+func CaptureFatal(err error) {
+	if err == nil {
+		return
+	}
+	msg := fmt.Sprintf("FATAL: %v", err)
+	line := time.Now().Format("15:04:05.000") + " " + msg
+	log.Print(line)
+	if crashLog != nil {
+		crashLog.WriteString(line + "\n")
+		crashLog.Sync()
+	}
+	if debugLog != nil {
+		debugLog.WriteString(line + "\n")
+		debugLog.Sync()
+	}
 	sentry.CaptureException(err)
+	sentry.Flush(2 * time.Second)
 }
 
 // CaptureMessage sends a message to Sentry.
@@ -93,7 +174,18 @@ func CaptureMessage(msg string) {
 // RecoverPanic can be used in defer to capture panics.
 func RecoverPanic() {
 	if r := recover(); r != nil {
-		Debug("PANIC: %v\nStack: %s", r, stackTrace())
+		stack := stackTrace()
+		msg := fmt.Sprintf("PANIC: %v\nStack:\n%s", r, stack)
+		line := time.Now().Format("15:04:05.000") + " " + msg
+		log.Print(line)
+		if crashLog != nil {
+			crashLog.WriteString(line + "\n")
+			crashLog.Sync()
+		}
+		if debugLog != nil {
+			debugLog.WriteString(line + "\n")
+			debugLog.Sync()
+		}
 		sentry.CurrentHub().Recover(r)
 		sentry.Flush(2 * time.Second)
 		panic(r) // re-panic after capture
@@ -113,8 +205,20 @@ func getHostname() string {
 
 // Close flushes Sentry and closes the debug log.
 func Close() {
+	if crashLog != nil {
+		fmt.Fprintf(crashLog, "SHFS shutting down normally at %s\n", time.Now().Format(time.RFC3339))
+	}
 	sentry.Flush(2 * time.Second)
 	if debugLog != nil {
 		debugLog.Close()
 	}
+	if crashLog != nil {
+		crashLog.Close()
+	}
+}
+
+// FlushSentry forces an immediate flush of Sentry events.
+// Call this after capturing fatal errors before exit.
+func FlushSentry() {
+	sentry.Flush(2 * time.Second)
 }

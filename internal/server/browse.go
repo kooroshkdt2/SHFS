@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"hfs-go/internal/auth"
+	"hfs-go/internal/debug"
 	"hfs-go/internal/vfs"
 )
 
@@ -235,7 +236,7 @@ func (s *Server) serveFolderListing(w http.ResponseWriter, r *http.Request, node
 		Folder:        node,
 		Items:         items,
 		Breadcrumbs:   breadcrumbs,
-		ServerVersion: "HFS Go 0.1.0",
+		ServerVersion: "SHFS Go " + debug.Version,
 		ServerTime:    time.Now().Format("2006-01-02 15:04:05"),
 		Uptime:        time.Since(s.startTime).Truncate(time.Second).String(),
 		TotalSize:     formatSize(node.TotalSize()),
@@ -372,7 +373,7 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, code int, t
 		Title:   title,
 		Message: message,
 		Code:    code,
-		Version: "HFS Go 0.1.0",
+		Version: "SHFS Go " + debug.Version,
 		Time:    time.Now().Format("2006-01-02 15:04:05"),
 	}
 
@@ -394,7 +395,7 @@ th{background:#47c;color:#fff;padding:.5em}td{padding:.5em;border-top:1px solid 
 <br>{{.NumFolders}} folders, {{.NumFiles}} files, {{.TotalSize}}</fieldset>
 {{if .CanUpload}}<fieldset><legend>Upload</legend><form method="post" enctype="multipart/form-data">
 <input type="file" name="file" multiple><button type="submit">Upload</button></form></fieldset>{{end}}
-<fieldset><legend>Info</legend>HFS Go v0.1.0<br>Uptime: {{.Uptime}}</fieldset></div>
+<fieldset><legend>Info</legend>SHFS Go {{.ServerVersion}}<br>Uptime: {{.Uptime}}</fieldset></div>
 <div id="main">
 {{if .Items}}<table><tr><th>Name<th>Size<th>Modified<th>Hits</tr>
 {{range .Items}}<tr><td><a href="{{.URL}}">{{if .IsFolder}}&#128193;{{else}}&#128196;{{end}} {{.Name}}{{if .IsFolder}}/{{end}}</a>
@@ -492,7 +493,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Error   string
 	}{
 		Realm:   s.cfg.Auth.Realm,
-		Version: "HFS Go 0.1.0",
+		Version: "SHFS Go " + debug.Version,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -4,6 +4,7 @@ package vfs
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -215,8 +216,9 @@ func (n *Node) FindByURL(url string) *Node {
 	if url == "/" || url == "" {
 		return n
 	}
-	// Clean the path
-	url = strings.TrimPrefix(filepath.Clean(url), "/")
+	// Clean the path (use path.Clean, NOT filepath.Clean — on Windows
+	// filepath.Clean converts / to \, which breaks URL parsing)
+	url = strings.TrimPrefix(path.Clean(url), "/")
 	if url == "." || url == "" {
 		return n
 	}
