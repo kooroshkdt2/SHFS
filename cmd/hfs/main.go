@@ -62,11 +62,16 @@ func setupVFS(cfg *config.Config, cliRoot string) (*vfs.Tree, error) {
 	if rootPath == "" {
 		rootPath = cfg.VFS.Root
 	}
-	if rootPath != "" {
+	// Normalize: replace any backslashes with forward slashes, clean the path
+	rootPath = filepath.ToSlash(filepath.Clean(rootPath))
+	log.Printf("Config root path: %q", rootPath)
+
+	if rootPath != "" && rootPath != "." {
 		absRoot, err := filepath.Abs(rootPath)
 		if err != nil {
-			return nil, fmt.Errorf("resolve root path: %w", err)
+			return nil, fmt.Errorf("resolve root path %q: %w", rootPath, err)
 		}
+		log.Printf("Resolved to: %q", absRoot)
 		if _, err := os.Stat(absRoot); err != nil {
 			return nil, fmt.Errorf("root path %q: %w", absRoot, err)
 		}
