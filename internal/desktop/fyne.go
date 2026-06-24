@@ -579,6 +579,14 @@ func (ui *UI) LogCallback(msg string) {
 	fyne.DoAndWait(func() { ui.log(msg) })
 }
 
+// BringToFront shows and focuses the window (single-instance signal).
+func (ui *UI) BringToFront() {
+	fyne.DoAndWait(func() {
+		ui.win.Show()
+		ui.win.RequestFocus()
+	})
+}
+
 func (ui *UI) log(msg string) {
 	now := time.Now().Format("15:04:05")
 	line := now + "  " + msg + "\n"

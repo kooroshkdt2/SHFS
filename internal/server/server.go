@@ -24,6 +24,7 @@ type Server struct {
 	vfs      *vfs.Tree
 	sessions *auth.SessionStore
 	httpSrv  *http.Server
+	mux      *http.ServeMux // stored for dynamic route registration
 
 	// Stats
 	startTime   time.Time
@@ -312,6 +313,13 @@ func (s *Server) IncDownloads() {
 	s.mu.Lock()
 	s.downloadsLogged++
 	s.mu.Unlock()
+}
+
+// HandleFunc registers a custom HTTP handler on the server's mux.
+func (s *Server) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	if s.mux != nil {
+		s.mux.HandleFunc(pattern, handler)
+	}
 }
 
 // IncUploads increments the upload counter.

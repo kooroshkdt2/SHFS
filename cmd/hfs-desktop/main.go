@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"hfs-go/internal/config"
@@ -52,6 +54,15 @@ func main() {
 		log.Fatalf("VFS error: %v", err)
 	}
 
+	// ---- Single instance check ----
+	if instanceAlreadyRunning(cfg.Server.Port) {
+		log.Println("Another instance is already running. Bringing it to front.")
+		os.Exit(0)
+	}
+	lockFile := filepath.Join(cfg.GetConfigDir(), "instance.lock")
+	acquireLock(lockFile)
+	defer os.Remove(lockFile)
+
 	srv := server.New(cfg, tree)
 
 	// Pre-check: is the port available?
@@ -65,6 +76,13 @@ func main() {
 	w.SetContent(ui.Content())
 	w.SetMainMenu(ui.BuildMenu())
 	w.SetIcon(desktop.ResourceShfsIcon())
+
+	// Register /api/show endpoint so second instance can bring this window up
+	srv.HandleFunc("/api/show", func(w2 http.ResponseWriter, r *http.Request) {
+		ui.BringToFront()
+		w2.WriteHeader(http.StatusOK)
+		w2.Write([]byte("ok"))
+	})
 
 	// Forward server log events to the UI
 	srv.LogFn = func(msg string) {
@@ -115,6 +133,23 @@ func checkPortAvailable(port int) bool {
 	}
 	ln.Close()
 	return true
+}
+
+// instanceAlreadyRunning checks if another instance is already running
+// by trying to reach the HTTP server on the configured port.
+func instanceAlreadyRunning(port int) bool {
+	url := fmt.Sprintf("http://localhost:%d/api/show", port)
+	resp, err := http.Get(url)
+	if err != nil {
+		return false // no response → no instance running
+	}
+	resp.Body.Close()
+	return true
+}
+
+// acquireLock writes a PID lock file.
+func acquireLock(lockFile string) {
+	os.WriteFile(lockFile, []byte(strconv.Itoa(os.Getpid())), 0644)
 }
 
 func setupVFS(cfg *config.Config, cliRoot string) (*vfs.Tree, error) {
