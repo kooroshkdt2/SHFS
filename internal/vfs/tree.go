@@ -3,6 +3,7 @@ package vfs
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -100,7 +101,7 @@ func (t *Tree) AddRealFolder(name, realPath, parentVPath string) (*Node, error) 
 		node = NewFile(name, realPath)
 	}
 
-	node.VirtualPath = filepath.Join(parentVPath, name)
+	node.VirtualPath = path.Join(parentVPath, name)
 	parent.AddChild(node)
 
 	// If it's a folder, scan its children
@@ -126,7 +127,7 @@ func (t *Tree) AddVirtualFolder(name, parentVPath string) (*Node, error) {
 		return existing, nil
 	}
 
-	node := NewVirtualFolder(name, filepath.Join(parentVPath, name))
+	node := NewVirtualFolder(name, path.Join(parentVPath, name))
 	parent.AddChild(node)
 	return node, nil
 }
@@ -319,6 +320,9 @@ func LoadTree(filePath string) (*Tree, error) {
 	// Rebuild parent references
 	t.rebuildParents(t.Root, nil)
 
+	// Normalize VirtualPaths (fix backslash contamination from older Windows saves)
+	t.normalizePaths()
+
 	// Re-scan real folders to pick up new/deleted files
 	if err := t.Scan(); err != nil {
 		// Non-fatal: scan failed but we have the persisted tree
@@ -334,6 +338,21 @@ func (t *Tree) rebuildParents(node *Node, parent *Node) {
 	for _, child := range node.Children {
 		t.rebuildParents(child, node)
 	}
+}
+
+// normalizePaths fixes backslash contamination in VirtualPath values
+// from older Windows saves (where filepath.Join was incorrectly used for URLs).
+func (t *Tree) normalizePaths() {
+	var walk func(n *Node)
+	walk = func(n *Node) {
+		if n.VirtualPath != "" {
+			n.VirtualPath = strings.ReplaceAll(n.VirtualPath, "\\", "/")
+		}
+		for _, child := range n.Children {
+			walk(child)
+		}
+	}
+	walk(t.Root)
 }
 
 // GetFilePath returns the path where the tree was last saved/loaded.

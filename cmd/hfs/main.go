@@ -8,11 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
-	"os/signal"
 	"path/filepath"
-	"runtime"
-	"syscall"
 
 	"hfs-go/internal/config"
 	"hfs-go/internal/debug"
@@ -25,7 +21,6 @@ var (
 	root       = flag.String("root", "", "Root folder to serve")
 	configFile = flag.String("config", "", "Path to config file")
 	debugFlag  = flag.Bool("debug", false, "Write debug log to config dir")
-	openBrowser = flag.Bool("browser", false, "Open admin panel in default browser")
 )
 
 func main() {
@@ -81,39 +76,9 @@ func main() {
 		debug.Debug("SRV: %s", msg)
 	}
 
-	// Start server (non-blocking)
-	if err := srv.Start(); err != nil {
+	if err := srv.StartAndWait(); err != nil {
 		debug.CaptureError(fmt.Errorf("server start: %w", err))
 		log.Fatalf("Server error: %v", err)
-	}
-
-	// Open browser to admin panel
-	if *openBrowser {
-		url := fmt.Sprintf("http://localhost:%d/admin/", cfg.Server.Port)
-		openURL(url)
-	}
-
-	// Block until signal
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	<-sig
-	log.Println("Shutting down...")
-	srv.Shutdown()
-}
-
-// openURL opens a URL in the default browser.
-func openURL(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	if err := cmd.Start(); err != nil {
-		log.Printf("Could not open browser: %v", err)
 	}
 }
 

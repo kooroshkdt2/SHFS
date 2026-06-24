@@ -173,10 +173,11 @@ func (n *Node) ModTime() time.Time {
 	return n.modTime
 }
 
-// URL returns the URL path for this node.
+// URL returns the URL path for this node (always with forward slashes).
 func (n *Node) URL() string {
 	if n.VirtualPath != "" {
-		return n.VirtualPath
+		// Normalize: ensure forward slashes (Windows may persist backslashes)
+		return strings.ReplaceAll(n.VirtualPath, "\\", "/")
 	}
 	if n.parent == nil {
 		return "/"
@@ -216,6 +217,8 @@ func (n *Node) FindByURL(url string) *Node {
 	if url == "/" || url == "" {
 		return n
 	}
+	// Normalize: backslashes -> forward slashes (defensive, for any persisted data)
+	url = strings.ReplaceAll(url, "\\", "/")
 	// Clean the path (use path.Clean, NOT filepath.Clean — on Windows
 	// filepath.Clean converts / to \, which breaks URL parsing)
 	url = strings.TrimPrefix(path.Clean(url), "/")
