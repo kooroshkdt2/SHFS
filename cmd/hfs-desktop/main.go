@@ -38,6 +38,13 @@ func main() {
 	// Catch any panic and flush to crash log before exit
 	defer debug.RecoverPanic()
 
+	// Enable software OpenGL via Mesa llvmpipe when no GPU is available.
+	// Critical for VMs, RDP sessions, and systems without 3D acceleration.
+	// Place Mesa's opengl32.dll + libgallium_wgl.dll next to the .exe.
+	if os.Getenv("GALLIUM_DRIVER") == "" {
+		os.Setenv("GALLIUM_DRIVER", "llvmpipe")
+	}
+
 	debug.Debug("main: starting, parsing flags")
 	port := flag.Int("port", 0, "HTTP port")
 	root := flag.String("root", "", "Root folder")
