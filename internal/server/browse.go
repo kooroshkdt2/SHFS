@@ -81,6 +81,9 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	node := s.vfs.FindByURL(decodedPath)
 	s.IncHits()
 
+	// Log URL resolution for debugging
+	s.logEvent("URL: raw=%q decoded=%q found=%v", urlPath, decodedPath, node != nil)
+
 	// If not found
 	if node == nil {
 		s.renderError(w, r, http.StatusNotFound, "Not found", "The requested URL was not found on this server.")

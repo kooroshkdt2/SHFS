@@ -16,10 +16,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
 	"hfs-go/internal/config"
+	"hfs-go/internal/debug"
 	"hfs-go/internal/desktop"
 	"hfs-go/internal/server"
 	"hfs-go/internal/vfs"
@@ -34,6 +36,10 @@ func main() {
 	root := flag.String("root", "", "Root folder")
 	cfgFile := flag.String("config", "", "Config file path")
 	flag.Parse()
+	defer debug.Close()
+
+	// Init Sentry for crash reporting
+	debug.InitSentry()
 
 	var cfg *config.Config
 	var err error
@@ -43,14 +49,23 @@ func main() {
 		cfg, err = config.Load()
 	}
 	if err != nil {
+		debug.CaptureError(fmt.Errorf("config: %w", err))
 		log.Fatalf("Config error: %v", err)
 	}
+
+	// Init debug log
+	debug.InitDebugLog(cfg.GetConfigDir())
+	debug.Debug("SHFS desktop starting")
+	debug.Debug("OS: %s config dir: %s", runtime.GOOS, cfg.GetConfigDir())
+	debug.Debug("Config root: %q", cfg.VFS.Root)
+
 	if *port > 0 {
 		cfg.Server.Port = *port
 	}
 
 	tree, err := setupVFS(cfg, *root)
 	if err != nil {
+		debug.CaptureError(fmt.Errorf("VFS: %w", err))
 		log.Fatalf("VFS error: %v", err)
 	}
 
@@ -84,8 +99,9 @@ func main() {
 		w2.Write([]byte("ok"))
 	})
 
-	// Forward server log events to the UI
+	// Forward server log events to UI and debug
 	srv.LogFn = func(msg string) {
+		debug.Debug("SRV: %s", msg)
 		ui.LogCallback(msg)
 	}
 	w.Resize(fyne.NewSize(900, 600))
