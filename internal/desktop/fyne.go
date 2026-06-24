@@ -313,7 +313,6 @@ func (ui *UI) buildLog() {
 	ui.logBox = widget.NewMultiLineEntry()
 	ui.logBox.Wrapping = fyne.TextWrapWord
 	ui.logBox.TextStyle = fyne.TextStyle{Monospace: true}
-	ui.logBox.Disable() // read-only
 }
 
 // ---- Connections (matching original connBox with columns) ----
