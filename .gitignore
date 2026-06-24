@@ -25,3 +25,6 @@ Thumbs.db
 # Wails
 wailsjs/
 frontend/wailsjs/
+shfs-crash.log
+shfs-linux-desktop
+shfs-windows-*

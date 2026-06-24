@@ -20,7 +20,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -29,7 +28,6 @@ import (
 type UI struct {
 	win     fyne.Window
 	app     fyne.App
-	deskApp desktop.App // for tray icon updates
 	srv     *server.Server
 	cfg     *config.Config
 	tree    *vfs.Tree
@@ -100,7 +98,6 @@ func (ui *UI) Build() {
 	ui.buildStatusBar()
 	ui.buildLayout()
 	ui.setupDragDrop()
-	ui.setupCloseIntercept()
 	ui.setupKeyboardShortcuts()
 
 	// Save VFS tree on startup
@@ -436,30 +433,6 @@ func (ui *UI) BuildMenu() *fyne.MainMenu {
 	return fyne.NewMainMenu(settingsMenu, helpMenu)
 }
 
-// ---- Tray minimize on close ----
-func (ui *UI) setupCloseIntercept() {
-	ui.win.SetCloseIntercept(func() {
-		ui.win.Hide()
-		ui.log("Minimized to tray. Use tray menu to restore.")
-	})
-}
-
-// SetupTray sets up the system tray AFTER the window is shown.
-// Called with a delay to avoid Windows auto-hide behavior.
-func (ui *UI) SetupTray() {
-	if desk, ok := ui.app.(desktop.App); ok {
-		ui.deskApp = desk
-		show := fyne.NewMenuItem("Show Window", func() {
-			ui.win.Show()
-			ui.win.RequestFocus()
-		})
-		quit := fyne.NewMenuItem("Quit SHFS", func() { ui.app.Quit() })
-		m := fyne.NewMenu("SHFS", show, fyne.NewMenuItemSeparator(), quit)
-		desk.SetSystemTrayMenu(m)
-		desk.SetSystemTrayIcon(ResourceShfsIcon())
-	}
-}
-
 // ---- Save / Restore state ----
 func (ui *UI) saveState() {
 	path := ui.cfg.VFS.TreeFile
@@ -631,14 +604,6 @@ func (ui *UI) pollLoop() {
 			ui.connData = conns
 			ui.connList.Refresh()
 			ui.redrawGraph(gc)
-
-			// Update tray icon with bandwidth bars
-			if ui.deskApp != nil && spd > 0 {
-				bwOut := outNow - lastOut
-				bwIn := inNow - lastIn
-				icon := BandwidthTrayIcon(bwOut, bwIn, spd*2)
-				ui.deskApp.SetSystemTrayIcon(icon)
-			}
 		})
 	}
 }

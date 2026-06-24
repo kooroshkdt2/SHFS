@@ -153,18 +153,10 @@ func main() {
 		}
 	}()
 
-	// Show window first, then set up tray after a delay (avoids Windows auto-hide)
+	// Show the window
 	debug.Debug("main: showing window")
 	w.Show()
 	w.RequestFocus()
-	go func() {
-		time.Sleep(2 * time.Second) // wait for window to fully render
-		debug.Debug("main: setting up tray (delayed)")
-		fyne.DoAndWait(func() {
-			ui.SetupTray()
-			debug.Debug("main: tray setup complete")
-		})
-	}()
 
 	debug.Debug("main: entering event loop (ShowAndRun)")
 	w.ShowAndRun()

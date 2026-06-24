@@ -172,6 +172,7 @@ func CaptureMessage(msg string) {
 }
 
 // RecoverPanic can be used in defer to capture panics.
+// DOES NOT re-panic — exits cleanly after flushing logs/Sentry.
 func RecoverPanic() {
 	if r := recover(); r != nil {
 		stack := stackTrace()
@@ -186,9 +187,15 @@ func RecoverPanic() {
 			debugLog.WriteString(line + "\n")
 			debugLog.Sync()
 		}
+		// Capture to Sentry if available
 		sentry.CurrentHub().Recover(r)
 		sentry.Flush(2 * time.Second)
-		panic(r) // re-panic after capture
+		// Exit cleanly — do NOT re-panic. On Windows with -H windowsgui,
+		// a re-panic is silent and the crash log is our only evidence.
+		if crashLog != nil {
+			crashLog.Close()
+		}
+		os.Exit(1)
 	}
 }
 
