@@ -121,8 +121,10 @@ func main() {
 	w.Show()
 	w.RequestFocus()
 	go func() {
-		time.Sleep(1 * time.Second)
-		ui.SetupTray()
+		time.Sleep(2 * time.Second) // wait for window to fully render
+		fyne.DoAndWait(func() {
+			ui.SetupTray()
+		})
 	}()
 	w.ShowAndRun()
 

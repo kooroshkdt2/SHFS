@@ -189,30 +189,45 @@ func LoadFile(path string) (*Config, error) {
 
 // fixWindowsPaths pre-processes YAML to handle Windows paths like F:\folder
 // where backslash is treated as an escape character in double-quoted strings.
+// Strategy: replace EVERY backslash with forward slash in quoted values.
+// This is safe because forward slashes work on all OSes and never need escaping.
 func fixWindowsPaths(data []byte) []byte {
 	s := string(data)
-	// Replace single backslashes NOT followed by valid YAML escapes
-	// Valid escapes: \\, \", \n, \t, \r, \b, \f, \/
-	// We double any \ that's followed by a non-escape character (likely a Windows path)
-	// Simplest approach: if we see \" or \\, leave alone. Other \ → \\
+	inQuotes := false
+	quoteChar := byte(0)
 	var result []byte
+
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\\' && i+1 < len(s) {
+		c := s[i]
+
+		// Track if we're inside a quoted string
+		if (c == '"' || c == '\'') && (i == 0 || s[i-1] != '\\') {
+			if !inQuotes {
+				inQuotes = true
+				quoteChar = c
+			} else if c == quoteChar {
+				inQuotes = false
+			}
+		}
+
+		// Replace backslash with forward slash inside double-quoted strings
+		if c == '\\' && inQuotes && i+1 < len(s) {
 			next := s[i+1]
-			switch next {
-			case '\\', '"', 'n', 't', 'r', 'b', 'f', '/', ' ':
-				// Valid YAML escape - keep as-is
-				result = append(result, '\\')
-			default:
-				// Likely a Windows path - double the backslash
-				result = append(result, '\\', '\\')
-				i++ // skip the next char since we handled it
+			// Keep valid YAML escapes as-is
+			if next == '\\' || next == '"' || next == '\'' ||
+				next == 'n' || next == 't' || next == 'r' ||
+				next == '/' || next == ' ' {
+				result = append(result, c)
 				result = append(result, next)
+				i++ // skip next char
 				continue
 			}
-		} else {
-			result = append(result, s[i])
+			// Replace Windows path backslash with forward slash
+			result = append(result, '/')
+			continue
 		}
+
+		result = append(result, c)
 	}
 	return result
 }

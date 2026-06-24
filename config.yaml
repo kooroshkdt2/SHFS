@@ -11,6 +11,7 @@ server:
 
 vfs:
   root: ""                  # real root folder (empty = start empty)
+                            # Use forward slashes: "C:/Users/me/share" or "/home/me/share"
   tree_file: "vfs.yaml"     # persisted VFS tree, relative to config dir
 
 auth:
