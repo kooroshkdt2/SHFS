@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image/color"
 	"net/url"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -35,6 +36,7 @@ type UI struct {
 	srv     *server.Server
 	cfg     *config.Config
 	tree    *vfs.Tree
+	hostIP  string // detected default route IP
 	running bool
 
 	// Layout containers
@@ -94,7 +96,20 @@ func NewUI(win fyne.Window, srv *server.Server, cfg *config.Config, tree *vfs.Tr
 		graphData: make([]graphPoint, 0, 120),
 	}
 	ui.treeData = &vfsTreeData{ui: ui}
+	ui.hostIP = detectIP()
 	return ui
+}
+
+// detectIP finds the primary IP of this machine by checking the
+// preferred outbound IP to a public address (no actual connection made).
+func detectIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "localhost"
+	}
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	conn.Close()
+	return localAddr.IP.String()
 }
 
 func (ui *UI) Build() {
@@ -237,19 +252,17 @@ func (ui *UI) buildToolbar() {
 
 // ---- URL Bar ----
 func (ui *UI) buildURLBar() {
+	baseURL := fmt.Sprintf("http://%s:%d", ui.hostIP, ui.cfg.Server.Port)
+
 	browseBtn := widget.NewButton("Open in browser", func() {
-		addr := fmt.Sprintf("http://localhost:%d", ui.cfg.Server.Port)
-		if u, err := url.Parse(addr); err == nil {
+		if u, err := url.Parse(baseURL); err == nil {
 			ui.app.OpenURL(u)
 		}
-		ui.log("Opening " + addr)
+		ui.log("Opening " + baseURL)
 	})
 
 	ui.urlEntry = widget.NewEntry()
-	ui.urlEntry.SetText(fmt.Sprintf("http://localhost:%d", ui.cfg.Server.Port))
-	ui.urlEntry.OnChanged = func(s string) {
-		ui.urlEntry.SetText(fmt.Sprintf("http://localhost:%d", ui.cfg.Server.Port))
-	}
+	ui.urlEntry.SetText(baseURL + "/")
 
 	ui.urlBar = container.NewBorder(nil, nil, browseBtn, nil, ui.urlEntry)
 }
@@ -273,6 +286,17 @@ func (ui *UI) buildVFSTree() {
 	ui.vfsTree.OnSelected = func(uid widget.TreeNodeID) {
 		ui.treeData.selected = uid
 		ui.updateActionButtons()
+		// Update address bar with full URL to selected file/folder
+		if uid != "" && uid != "/" {
+			node := ui.tree.FindByURL(uid)
+			if node != nil {
+				ui.urlEntry.SetText(fmt.Sprintf("http://%s:%d%s",
+					ui.hostIP, ui.cfg.Server.Port, node.URL()))
+			}
+		} else {
+			ui.urlEntry.SetText(fmt.Sprintf("http://%s:%d/",
+				ui.hostIP, ui.cfg.Server.Port))
+		}
 	}
 }
 
