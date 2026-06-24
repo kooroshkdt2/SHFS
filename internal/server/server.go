@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -112,7 +113,7 @@ func (s *Server) Start() error {
 		Handler:      s.routes(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 0, // no timeout for large file transfers
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  60 * time.Second, // close idle keep-alive connections
 		ConnContext:  s.connContext,
 	}
 
@@ -232,7 +233,7 @@ func (s *Server) GetStats() Stats {
 	}
 }
 
-// GetConnections returns the list of active connections with computed speeds.
+// GetConnections returns the list of active connections sorted by speed (fastest first).
 func (s *Server) GetConnections() []ConnInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -250,6 +251,11 @@ func (s *Server) GetConnections() []ConnInfo {
 		}
 		conns = append(conns, *c)
 	}
+
+	// Sort by speed descending (fastest transfers first)
+	sort.Slice(conns, func(i, j int) bool {
+		return conns[i].Speed > conns[j].Speed
+	})
 	return conns
 }
 

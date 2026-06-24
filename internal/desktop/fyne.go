@@ -649,10 +649,14 @@ func (ui *UI) log(msg string) {
 	line := now + "  " + msg + "\n"
 	ui.logBox.SetText(ui.logBox.Text + line)
 
-	// Trim old lines (keep last 500)
-	if strings.Count(ui.logBox.Text, "\n") > 500 {
-		idx := strings.Index(ui.logBox.Text, "\n")
-		if idx > 0 { ui.logBox.SetText(ui.logBox.Text[idx+1:]) }
+	// Rotate log: when over 500 lines, trim oldest ~100 to keep ~400
+	if n := strings.Count(ui.logBox.Text, "\n"); n > 500 {
+		lines := strings.Split(ui.logBox.Text, "\n")
+		keep := n - 400 // drop oldest lines
+		if keep < 0 { keep = 0 }
+		if keep < len(lines) {
+			ui.logBox.SetText(strings.Join(lines[keep:], "\n"))
+		}
 	}
 
 	// Auto-scroll to bottom

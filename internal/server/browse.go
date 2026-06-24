@@ -82,8 +82,6 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	node := s.vfs.FindByURL(decodedPath)
 	s.IncHits()
 
-	// Log URL resolution for debugging
-	s.logEvent("URL: raw=%q decoded=%q found=%v", urlPath, decodedPath, node != nil)
 
 	// If not found
 	if node == nil {
@@ -166,7 +164,12 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, node *vfs.Nod
 	// Track this as a download
 	s.IncDownloads()
 	clientIP := getClientIP(r)
-	s.logEvent("Download: %s %s — %s", clientIP, node.URL(), formatSize(node.Size()))
+	rangeHdr := r.Header.Get("Range")
+	if rangeHdr != "" {
+		s.logEvent("Download: %s %s — %s [%s]", clientIP, node.URL(), formatSize(node.Size()), rangeHdr)
+	} else {
+		s.logEvent("Download: %s %s — %s", clientIP, node.URL(), formatSize(node.Size()))
+	}
 
 	// Serve the file (Go's http.ServeContent handles Range, If-Modified-Since, etc.)
 	file, err := os.Open(node.RealPath)

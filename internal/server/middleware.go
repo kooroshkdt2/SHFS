@@ -21,12 +21,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// loggingMiddleware logs HTTP requests.
+// loggingMiddleware logs HTTP requests with Range info for download managers.
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// Wrap response writer to capture status code
+		// Wrap response writer to capture bytes sent
 		wr := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(wr, r)
@@ -38,12 +38,20 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 		if s.cfg.Log.LogRequests {
 			duration := time.Since(start)
-			log.Printf("%s %s %s %d %s",
+
+			rangeInfo := ""
+			if rangeHdr := r.Header.Get("Range"); rangeHdr != "" {
+				rangeInfo = " [" + rangeHdr + "]"
+			}
+
+			log.Printf("%s %s %s %d %s %s%s",
 				r.Method,
 				r.URL.String(),
 				getClientIP(r),
 				wr.statusCode,
-				duration.Truncate(time.Millisecond),
+				formatSize(wr.bytesSent),
+				duration.Truncate(time.Millisecond).String(),
+				rangeInfo,
 			)
 		}
 	})
