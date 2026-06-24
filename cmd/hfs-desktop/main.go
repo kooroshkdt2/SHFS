@@ -101,7 +101,7 @@ func main() {
 
 	// Show port-busy dialog after window opens if port was taken
 	if !portAvailable {
-		time.Sleep(200 * time.Millisecond) // let window render
+		time.Sleep(200 * time.Millisecond)
 		dialog.ShowError(
 			fmt.Errorf("Port %d is already in use.\n\nPlease choose a different port (click 'Port: %d' button) or stop the other program using this port.", cfg.Server.Port, cfg.Server.Port),
 			w,
@@ -114,10 +114,12 @@ func main() {
 		case err := <-serverErr:
 			dialog.ShowError(fmt.Errorf("Server failed to start: %v", err), w)
 		case <-time.After(3 * time.Second):
-			// Server started OK
 		}
 	}()
 
+	// Force window visible (counters any tray-induced auto-hide on Windows)
+	w.Show()
+	w.RequestFocus()
 	w.ShowAndRun()
 
 	log.Println("Shutting down...")

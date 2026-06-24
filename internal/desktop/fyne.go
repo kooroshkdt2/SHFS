@@ -443,7 +443,7 @@ func (ui *UI) setupCloseIntercept() {
 		ui.log("HFS minimized to tray. Use system tray to restore or quit.")
 	})
 
-	// Add system tray if supported
+	// Add system tray if supported (AFTER window is ready)
 	if desk, ok := ui.app.(desktop.App); ok {
 		ui.deskApp = desk
 		show := fyne.NewMenuItem("Show", func() {
@@ -454,6 +454,9 @@ func (ui *UI) setupCloseIntercept() {
 		m := fyne.NewMenu("SHFS", show, fyne.NewMenuItemSeparator(), quit)
 		desk.SetSystemTrayMenu(m)
 		desk.SetSystemTrayIcon(ResourceShfsIcon())
+		// Ensure window stays visible after tray setup (Windows may auto-hide)
+		ui.win.Show()
+		ui.win.RequestFocus()
 	}
 }
 
