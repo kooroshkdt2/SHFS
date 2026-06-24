@@ -109,17 +109,9 @@ func Defaults() *Config {
 	}
 }
 
-// ConfigDir returns the platform-specific configuration directory.
+// ConfigDir returns the configuration directory (./hfs-configs).
 func ConfigDir() string {
-	// XDG_CONFIG_HOME / AppData
-	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
-		return filepath.Join(d, "hfs")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "."
-	}
-	return filepath.Join(home, ".config", "hfs")
+	return "hfs-configs"
 }
 
 // Load reads configuration from the standard location.
