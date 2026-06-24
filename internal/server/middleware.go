@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -36,23 +37,19 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			s.AddBytesSent(wr.bytesSent)
 		}
 
-		if s.cfg.Log.LogRequests {
-			duration := time.Since(start)
-
+		if s.LogFn != nil && wr.statusCode >= 200 && wr.statusCode < 400 {
+			// Send request info to UI log (not debug/crash files)
 			rangeInfo := ""
 			if rangeHdr := r.Header.Get("Range"); rangeHdr != "" {
 				rangeInfo = " [" + rangeHdr + "]"
 			}
-
-			log.Printf("%s %s %s %d %s %s%s",
-				r.Method,
-				r.URL.String(),
-				getClientIP(r),
-				wr.statusCode,
-				formatSize(wr.bytesSent),
+			duration := time.Since(start)
+			s.LogFn(fmt.Sprintf("%s %s — %d %s %s%s",
+				r.Method, r.URL.RequestURI(),
+				wr.statusCode, formatSize(wr.bytesSent),
 				duration.Truncate(time.Millisecond).String(),
 				rangeInfo,
-			)
+			))
 		}
 	})
 }
