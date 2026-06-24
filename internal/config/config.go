@@ -110,10 +110,10 @@ func Defaults() *Config {
 			SessionTimeout: 24 * time.Hour,
 		},
 		Layout: LayoutConfig{
-			Width:       900,
-			Height:      600,
+			Width:       1024,
+			Height:      768,
 			VSFSplit:    0.4,
-			CenterSplit: 0.70,
+			CenterSplit: 0.5307733676356993,
 			BottomSplit: 0.82,
 		},
 		Log: LogConfig{
