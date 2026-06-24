@@ -27,11 +27,12 @@ import (
 
 // UI is the main desktop user interface.
 type UI struct {
-	win    fyne.Window
-	app    fyne.App
-	srv    *server.Server
-	cfg    *config.Config
-	tree   *vfs.Tree
+	win     fyne.Window
+	app     fyne.App
+	deskApp desktop.App // for tray icon updates
+	srv     *server.Server
+	cfg     *config.Config
+	tree    *vfs.Tree
 	running bool
 
 	// Layout containers
@@ -444,14 +445,15 @@ func (ui *UI) setupCloseIntercept() {
 
 	// Add system tray if supported
 	if desk, ok := ui.app.(desktop.App); ok {
+		ui.deskApp = desk
 		show := fyne.NewMenuItem("Show", func() {
 			ui.win.Show()
 			ui.win.RequestFocus()
 		})
 		quit := fyne.NewMenuItem("Quit", func() { ui.app.Quit() })
-		m := fyne.NewMenu("HFS", show, fyne.NewMenuItemSeparator(), quit)
+		m := fyne.NewMenu("SHFS", show, fyne.NewMenuItemSeparator(), quit)
 		desk.SetSystemTrayMenu(m)
-		desk.SetSystemTrayIcon(resourceShfsIcon())
+		desk.SetSystemTrayIcon(ResourceShfsIcon())
 	}
 }
 
@@ -626,6 +628,14 @@ func (ui *UI) pollLoop() {
 			ui.connData = conns
 			ui.connList.Refresh()
 			ui.redrawGraph(gc)
+
+			// Update tray icon with bandwidth bars
+			if ui.deskApp != nil && spd > 0 {
+				bwOut := outNow - lastOut
+				bwIn := inNow - lastIn
+				icon := BandwidthTrayIcon(bwOut, bwIn, spd*2)
+				ui.deskApp.SetSystemTrayIcon(icon)
+			}
 		})
 	}
 }

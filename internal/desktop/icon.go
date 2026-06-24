@@ -4,46 +4,89 @@
 package desktop
 
 import (
+	"bytes"
+	_ "embed"
 	"image"
 	"image/color"
 	"image/draw"
 	"image/png"
-	"bytes"
 
 	"fyne.io/fyne/v2"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/math/fixed"
 )
 
-// ResourceShfsIcon returns the app icon as a Fyne resource.
+//go:embed shfs.png
+var iconPNG []byte
+
+// ResourceShfsIcon returns the static app icon.
 func ResourceShfsIcon() fyne.Resource {
-	return resourceShfsIcon()
+	return fyne.NewStaticResource("shfs-icon", iconPNG)
 }
 
-func resourceShfsIcon() fyne.Resource {
-	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+// BandwidthTrayIcon generates a 32x32 tray icon showing bandwidth bars.
+// Pink bar = outgoing, yellow bar = incoming, on black background.
+func BandwidthTrayIcon(outBytes, inBytes int64, maxBytes int64) fyne.Resource {
+	sz := 32
+	img := image.NewRGBA(image.Rect(0, 0, sz, sz))
 
-	// Blue rounded-rect background
-	bgColor := color.RGBA{0x33, 0x66, 0xCC, 0xFF}
-	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
+	// Black background
+	bg := color.RGBA{0, 0, 0, 255}
+	draw.Draw(img, img.Bounds(), &image.Uniform{bg}, image.Point{}, draw.Src)
 
-	// White "S" letter centered
-	white := color.RGBA{0xFF, 0xFF, 0xFF, 0xFF}
-	point := fixed.Point26_6{
-		X: fixed.Int26_6(18 * 64),
-		Y: fixed.Int26_6(46 * 64),
+	if maxBytes == 0 {
+		maxBytes = 1024
 	}
-	d := &font.Drawer{
-		Dst:  img,
-		Src:  &image.Uniform{white},
-		Face: basicfont.Face7x13,
-		Dot:  point,
+
+	// Pink bar (outgoing) - left half
+	outH := int(float64(outBytes) / float64(maxBytes) * float64(sz))
+	if outH > sz {
+		outH = sz
 	}
-	d.DrawString("S")
+	if outH > 0 {
+		pink := color.RGBA{0xE0, 0x90, 0xA0, 0xFF}
+		for y := sz - outH; y < sz; y++ {
+			for x := 2; x < 14; x++ {
+				img.Set(x, y, pink)
+			}
+		}
+	}
+
+	// Yellow bar (incoming) - right half
+	inH := int(float64(inBytes) / float64(maxBytes) * float64(sz))
+	if inH > sz {
+		inH = sz
+	}
+	if inH > 0 {
+		yellow := color.RGBA{0xE0, 0xD0, 0x90, 0xFF}
+		for y := sz - inH; y < sz; y++ {
+			for x := 18; x < 30; x++ {
+				img.Set(x, y, yellow)
+			}
+		}
+	}
+
+	// "S" label at top
+	label := color.RGBA{0xFF, 0xFF, 0xFF, 0xFF}
+	for y := 2; y < 7; y++ {
+		img.Set(6, y, label)
+		img.Set(15, y, label)
+		img.Set(24, y, label)
+	}
+	// "H" label
+	for y := 2; y < 7; y++ {
+		img.Set(7, y, label)
+		img.Set(14, y, label)
+		img.Set(25, y, label)
+	}
+	// S top bar
+	for x := 7; x < 15; x++ {
+		img.Set(x, 3, label)
+	}
+	// H middle bar
+	for x := 7; x < 14; x++ {
+		img.Set(x, 4, label)
+	}
 
 	var buf bytes.Buffer
 	png.Encode(&buf, img)
-
-	return fyne.NewStaticResource("shfs-icon", buf.Bytes())
+	return fyne.NewStaticResource("tray-bw", buf.Bytes())
 }
