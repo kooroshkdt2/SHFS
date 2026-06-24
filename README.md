@@ -54,7 +54,7 @@ the binary for your platform.
 | File | For |
 |------|-----|
 | `shfs-windows-amd64-desktop.exe` | Windows with GPU/OpenGL |
-| `shfs-windows-amd64-rdp.zip` | **Windows RDP / VM / Proxmox** (includes Mesa software OpenGL — unzip and run) |
+| `shfs-windows-amd64-desktop-rdp-support.zip` | **Windows RDP / VM / Proxmox** (includes Mesa software OpenGL — unzip and run) |
 | `shfs-windows-amd64-headless.exe` | Windows server (no GUI) |
 | `shfs-linux-amd64-desktop` | Linux desktop |
 | `shfs-darwin-*-desktop` | macOS desktop |
@@ -64,7 +64,7 @@ the binary for your platform.
 Windows Remote Desktop and many VMs (Proxmox, Hyper-V without RemoteFX, VirtualBox
 without 3D acceleration) don't expose OpenGL — the desktop app won't display.
 
-Download `shfs-windows-amd64-rdp.zip`, unzip to a folder, and run `shfs-desktop.exe`.
+Download `shfs-windows-amd64-desktop-rdp-support.zip`, unzip to a folder, and run `shfs-desktop.exe`.
 The zip includes Mesa's software OpenGL (LLVMpipe) which renders via CPU — works
 everywhere, just slightly slower.
 

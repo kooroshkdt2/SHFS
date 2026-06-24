@@ -122,12 +122,12 @@ jobs:
           copy mesa\x64\opengl32.dll shfs-rdp\
           copy mesa\x64\libgallium_wgl.dll shfs-rdp\
           copy mesa\x64\libglapi.dll shfs-rdp\
-          Compress-Archive -Path shfs-rdp\* -DestinationPath shfs-windows-amd64-rdp.zip
+          Compress-Archive -Path shfs-rdp\* -DestinationPath shfs-windows-amd64-desktop-rdp-support.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: shfs-windows-amd64-rdp
-          path: shfs-windows-amd64-rdp.zip
+          name: shfs-windows-amd64-desktop-rdp-support
+          path: shfs-windows-amd64-desktop-rdp-support.zip
 
   build-desktop-macos:
     name: Desktop macOS

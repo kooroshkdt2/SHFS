@@ -62,7 +62,8 @@ type UI struct {
 	actionLabel  *widget.Label
 
 	// Log
-	logBox *widget.Entry
+	logBox   *widget.Label
+	logLines []string
 
 	// Connections
 	connList *widget.List
@@ -310,9 +311,9 @@ func (ui *UI) updateActionButtons() {
 
 // ---- Log ----
 func (ui *UI) buildLog() {
-	ui.logBox = widget.NewMultiLineEntry()
-	ui.logBox.Wrapping = fyne.TextWrapWord
+	ui.logBox = widget.NewLabel("")
 	ui.logBox.TextStyle = fyne.TextStyle{Monospace: true}
+	ui.logBox.Wrapping = fyne.TextWrapWord
 }
 
 // ---- Connections (matching original connBox with columns) ----
@@ -645,21 +646,15 @@ func (ui *UI) BringToFront() {
 
 func (ui *UI) log(msg string) {
 	now := time.Now().Format("15:04:05")
-	line := now + "  " + msg + "\n"
-	ui.logBox.SetText(ui.logBox.Text + line)
+	line := now + "  " + msg
+	ui.logLines = append(ui.logLines, line)
 
-	// Rotate log: when over 500 lines, trim oldest ~100 to keep ~400
-	if n := strings.Count(ui.logBox.Text, "\n"); n > 500 {
-		lines := strings.Split(ui.logBox.Text, "\n")
-		keep := n - 400 // drop oldest lines
-		if keep < 0 { keep = 0 }
-		if keep < len(lines) {
-			ui.logBox.SetText(strings.Join(lines[keep:], "\n"))
-		}
+	// Rotate log: keep last 500 lines
+	if len(ui.logLines) > 500 {
+		ui.logLines = ui.logLines[len(ui.logLines)-400:]
 	}
 
-	// Auto-scroll to bottom
-	ui.logBox.CursorRow = strings.Count(ui.logBox.Text, "\n")
+	ui.logBox.SetText(strings.Join(ui.logLines, "\n"))
 }
 
 // ---- Poll loop ----
