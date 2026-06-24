@@ -111,6 +111,24 @@ jobs:
           name: shfs-windows-amd64-desktop
           path: shfs-windows-amd64-desktop.exe
 
+      - name: Download Mesa software OpenGL for RDP/VM bundle
+        shell: pwsh
+        run: |
+          $mesaUrl = "https://github.com/pal1000/mesa-dist-win/releases/download/24.0.4/mesa3d-24.0.4-release-msvc.7z"
+          Invoke-WebRequest -Uri $mesaUrl -OutFile mesa.7z
+          7z x mesa.7z -omesa -y
+          mkdir shfs-rdp
+          copy shfs-windows-amd64-desktop.exe shfs-rdp\shfs-desktop.exe
+          copy mesa\x64\opengl32.dll shfs-rdp\
+          copy mesa\x64\libgallium_wgl.dll shfs-rdp\
+          copy mesa\x64\libglapi.dll shfs-rdp\
+          Compress-Archive -Path shfs-rdp\* -DestinationPath shfs-windows-amd64-rdp.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shfs-windows-amd64-rdp
+          path: shfs-windows-amd64-rdp.zip
+
   build-desktop-macos:
     name: Desktop macOS
     runs-on: macos-latest

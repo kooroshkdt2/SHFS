@@ -16,8 +16,8 @@ Created by **Koorosh_KDT**.
 - **Upload support** — with optional anonymous upload and per-folder permissions
 - **Live bandwidth graph** — pink=outgoing, yellow=incoming
 - **Connection monitor** — see active transfers with real-time speed
-- **System tray** — minimize to tray, keep serving in background
-- **Config persistence** — settings and VFS tree saved between sessions
+- **Portable config** — all data in `./hfs-configs/` folder, take it anywhere
+- **RDP/VM support** — software rendering for Proxmox, RDP, and headless VMs
 
 ## Screenshot
 
@@ -50,6 +50,23 @@ Created by **Koorosh_KDT**.
 
 Go to [Releases](https://github.com/kooroshkdt2/SHFS/releases) and download
 the binary for your platform.
+
+| File | For |
+|------|-----|
+| `shfs-windows-amd64-desktop.exe` | Windows with GPU/OpenGL |
+| `shfs-windows-amd64-rdp.zip` | **Windows RDP / VM / Proxmox** (includes Mesa software OpenGL — unzip and run) |
+| `shfs-windows-amd64-headless.exe` | Windows server (no GUI) |
+| `shfs-linux-amd64-desktop` | Linux desktop |
+| `shfs-darwin-*-desktop` | macOS desktop |
+
+### RDP / VM / Proxmox Users
+
+Windows Remote Desktop and many VMs (Proxmox, Hyper-V without RemoteFX, VirtualBox
+without 3D acceleration) don't expose OpenGL — the desktop app won't display.
+
+Download `shfs-windows-amd64-rdp.zip`, unzip to a folder, and run `shfs-desktop.exe`.
+The zip includes Mesa's software OpenGL (LLVMpipe) which renders via CPU — works
+everywhere, just slightly slower.
 
 ### Build from Source
 
@@ -116,7 +133,7 @@ http://localhost:8080/admin/
 
 ## Configuration
 
-Config is stored in `~/.config/shfs/config.yaml`:
+All config, VFS, and logs are stored in `./hfs-configs/` (next to the executable):
 
 ```yaml
 server:

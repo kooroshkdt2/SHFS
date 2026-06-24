@@ -28,3 +28,6 @@ frontend/wailsjs/
 shfs-crash.log
 shfs-linux-desktop
 shfs-windows-*
+
+# Local Mesa/RDP build folder
+shfs-windows-desktop-mesa/
