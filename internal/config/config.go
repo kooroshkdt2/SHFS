@@ -19,6 +19,7 @@ type Config struct {
 	Auth     AuthConfig     `yaml:"auth"`
 	Accounts []Account      `yaml:"accounts"`
 	Log      LogConfig      `yaml:"log"`
+	Layout   LayoutConfig   `yaml:"layout"`
 	Bans     []Ban          `yaml:"bans"`
 
 	mu       sync.RWMutex  `yaml:"-"`
@@ -68,6 +69,15 @@ type Ban struct {
 	Reason  string `yaml:"reason,omitempty" json:"reason,omitempty"`
 }
 
+// LayoutConfig holds saved window layout.
+type LayoutConfig struct {
+	Width        int     `yaml:"width" json:"width"`
+	Height       int     `yaml:"height" json:"height"`
+	VSFSplit     float64 `yaml:"vfs_split" json:"vfs_split"`         // VFS panel / log panel (0.0-1.0)
+	CenterSplit  float64 `yaml:"center_split" json:"center_split"`   // center / bottom
+	BottomSplit  float64 `yaml:"bottom_split" json:"bottom_split"`   // connections / status
+}
+
 // LogConfig holds logging settings.
 type LogConfig struct {
 	File           string `yaml:"file"`
@@ -98,6 +108,13 @@ func Defaults() *Config {
 		Auth: AuthConfig{
 			Realm:          "HFS",
 			SessionTimeout: 24 * time.Hour,
+		},
+		Layout: LayoutConfig{
+			Width:       900,
+			Height:      600,
+			VSFSplit:    0.4,
+			CenterSplit: 0.70,
+			BottomSplit: 0.82,
 		},
 		Log: LogConfig{
 			LogUploads:     true,

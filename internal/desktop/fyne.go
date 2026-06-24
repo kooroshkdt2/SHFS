@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -40,6 +41,11 @@ type UI struct {
 	toolbarWidget *fyne.Container
 	urlBar        *fyne.Container
 	statusBar     *fyne.Container
+
+	// Split containers (for saving/restoring layout)
+	centerSplit *container.Split
+	mainSplit   *container.Split
+	bottomSplit *container.Split
 
 	// Toolbar widgets
 	portBtn  *widget.Button
@@ -375,21 +381,21 @@ func (ui *UI) buildLayout() {
 	logHeader := widget.NewLabelWithStyle("Log", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	logPanel := container.NewBorder(logHeader, nil, nil, nil, ui.logBox)
 
-	centerSplit := container.NewHSplit(vfsPanel, logPanel)
-	centerSplit.SetOffset(0.4)
+	ui.centerSplit = container.NewHSplit(vfsPanel, logPanel)
+	ui.centerSplit.SetOffset(ui.cfg.Layout.VSFSplit)
 
 	// Bottom: connections + status bar
 	connHeader := widget.NewLabelWithStyle("Active Connections", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	connPanel := container.NewBorder(connHeader, nil, nil, nil, ui.connList)
 
-	bottomSplit := container.NewVSplit(connPanel, container.NewPadded(ui.statusBar))
-	bottomSplit.SetOffset(0.82) // connections get 82%
+	ui.bottomSplit = container.NewVSplit(connPanel, container.NewPadded(ui.statusBar))
+	ui.bottomSplit.SetOffset(ui.cfg.Layout.BottomSplit)
 
-	// Main vertical split: center gets 70%, bottom gets 30%
-	mainSplit := container.NewVSplit(centerSplit, bottomSplit)
-	mainSplit.SetOffset(0.70)
+	// Main vertical split: center / bottom
+	ui.mainSplit = container.NewVSplit(ui.centerSplit, ui.bottomSplit)
+	ui.mainSplit.SetOffset(ui.cfg.Layout.CenterSplit)
 
-	ui.content = container.NewBorder(topBox, nil, nil, nil, mainSplit)
+	ui.content = container.NewBorder(topBox, nil, nil, nil, ui.mainSplit)
 }
 
 // ---- Menu bar ----
@@ -460,11 +466,11 @@ func (ui *UI) SetupTray() {
 		}
 	}()
 
-	// On Linux, check that D-Bus is available. systray requires D-Bus
+	// On Linux only: check that D-Bus is available. systray requires D-Bus
 	// and will panic on shutdown (nativeEnd -> dbus.Conn.Close on nil)
 	// if initialized without a desktop session bus.
-	if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-		// No D-Bus — skip tray (WSL, headless, SSH, some VMs)
+	// Windows/macOS don't use D-Bus — tray always works there.
+	if runtime.GOOS == "linux" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
 		ui.log("No D-Bus session — system tray disabled")
 		return
 	}
@@ -487,6 +493,7 @@ func (ui *UI) SetupTray() {
 
 // ---- Save / Restore state ----
 func (ui *UI) saveState() {
+	ui.saveLayout()
 	path := ui.cfg.VFS.TreeFile
 	if path == "" { path = "vfs.yaml" }
 	if !filepath.IsAbs(path) {
@@ -494,6 +501,24 @@ func (ui *UI) saveState() {
 	}
 	ui.tree.Save(path)
 	ui.cfg.Save()
+}
+
+// saveLayout saves window size and split positions to config.
+func (ui *UI) saveLayout() {
+	sz := ui.win.Canvas().Size()
+	if sz.Width > 0 && sz.Height > 0 {
+		ui.cfg.Layout.Width = int(sz.Width)
+		ui.cfg.Layout.Height = int(sz.Height)
+	}
+	if ui.centerSplit != nil {
+		ui.cfg.Layout.VSFSplit = ui.centerSplit.Offset
+	}
+	if ui.mainSplit != nil {
+		ui.cfg.Layout.CenterSplit = ui.mainSplit.Offset
+	}
+	if ui.bottomSplit != nil {
+		ui.cfg.Layout.BottomSplit = ui.bottomSplit.Offset
+	}
 }
 
 // ---- Drag & Drop ----
@@ -633,7 +658,9 @@ var lastIn, lastOut int64
 func (ui *UI) pollLoop() {
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
+	ticks := 0
 	for range t.C {
+		ticks++
 		stats := ui.srv.GetStats()
 		conns := ui.srv.GetConnections()
 		outNow, inNow := stats.BytesSent, stats.BytesRecv
@@ -665,6 +692,13 @@ func (ui *UI) pollLoop() {
 				if maxBW < 1024 { maxBW = 1024 }
 				icon := BandwidthTrayIcon(bwOut, bwIn, maxBW)
 				ui.deskApp.SetSystemTrayIcon(icon)
+			}
+
+			// Save layout periodically (every 30s) so window size/split
+			// positions persist across restarts
+			if ticks%15 == 0 {
+				ui.saveLayout()
+				ui.cfg.Save()
 			}
 		})
 	}

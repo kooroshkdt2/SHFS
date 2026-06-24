@@ -130,7 +130,12 @@ func main() {
 		debug.Debug("SRV: %s", msg)
 		ui.LogCallback(msg)
 	}
-	w.Resize(fyne.NewSize(900, 600))
+	// Restore saved window size or use default
+	ww := float32(cfg.Layout.Width)
+	wh := float32(cfg.Layout.Height)
+	if ww < 400 { ww = 900 }
+	if wh < 300 { wh = 600 }
+	w.Resize(fyne.NewSize(ww, wh))
 	w.SetMaster()
 
 	// Start the HTTP server in background, notify UI of any errors
