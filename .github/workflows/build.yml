@@ -1,0 +1,148 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  # ---- Headless builds (pure Go, no GUI deps) ----
+  build-headless:
+    name: Headless ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, arm64]
+        exclude:
+          - os: darwin
+            arch: arm64   # macOS arm64 handled below
+    env:
+      GOOS: ${{ matrix.os }}
+      GOARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+
+      - name: Build headless
+        run: |
+          go build -tags headless -ldflags="-s -w" -o shfs-${{ matrix.os }}-${{ matrix.arch }} ./cmd/hfs
+          file shfs-${{ matrix.os }}-${{ matrix.arch }} || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shfs-${{ matrix.os }}-${{ matrix.arch }}
+          path: shfs-${{ matrix.os }}-${{ matrix.arch }}
+
+  # macOS arm64 headless (native runner)
+  build-headless-darwin-arm64:
+    name: Headless darwin-arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - run: |
+          GOOS=darwin GOARCH=arm64 go build -tags headless -ldflags="-s -w" -o shfs-darwin-arm64 ./cmd/hfs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shfs-darwin-arm64
+          path: shfs-darwin-arm64
+
+  # ---- Desktop builds (Fyne GUI) ----
+  build-desktop-linux:
+    name: Desktop Linux amd64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+
+      - name: Install deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libx11-dev libgl1-mesa-dev libxrandr-dev \
+            libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev
+
+      - name: Build desktop
+        run: |
+          go build -ldflags="-s -w" -o shfs-linux-amd64 ./cmd/hfs-desktop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shfs-linux-amd64-desktop
+          path: shfs-linux-amd64
+
+  build-desktop-windows:
+    name: Desktop Windows amd64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+
+      - name: Build desktop
+        run: |
+          go build -ldflags="-s -w -H windowsgui" -o shfs-windows-amd64.exe ./cmd/hfs-desktop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shfs-windows-amd64-desktop
+          path: shfs-windows-amd64.exe
+
+  build-desktop-macos:
+    name: Desktop macOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+
+      - name: Build desktop
+        env:
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build -ldflags="-s -w" -o shfs-darwin-${{ matrix.arch }} ./cmd/hfs-desktop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shfs-darwin-${{ matrix.arch }}-desktop
+          path: shfs-darwin-${{ matrix.arch }}
+
+  # ---- Create GitHub Release on tag push ----
+  release:
+    name: Create Release
+    needs:
+      - build-headless
+      - build-headless-darwin-arm64
+      - build-desktop-linux
+      - build-desktop-windows
+      - build-desktop-macos
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+
+      - name: List artifacts
+        run: find artifacts -type f -ls
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

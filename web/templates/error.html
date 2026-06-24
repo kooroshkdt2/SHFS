@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} - HFS</title>
+<style>
+body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f0f2f5}
+.box{background:#fff;padding:3em;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);text-align:center;max-width:500px}
+h1{color:#e74c3c;font-size:2em;margin:0 0 0.5em}
+p{color:#666;margin:1em 0}
+a{color:#47c;text-decoration:none}
+a:hover{text-decoration:underline}
+.footer{font-size:11px;color:#999;margin-top:2em}
+</style>
+</head>
+<body>
+<div class="box">
+    <h1>{{.Code}}: {{.Title}}</h1>
+    <p>{{.Message}}</p>
+    <p><a href="/">Go to root</a></p>
+    <div class="footer">{{.Version}} &bull; {{.Time}}</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HFS ~ HTTP File Server</title>
+<link rel="stylesheet" href="/admin/app.css">
+</head>
+<body>
+
+<!-- Top Toolbar -->
+<div id="top-toolbar">
+  <button id="btn-port" title="Change port">Port: <span id="port-label">8080</span></button>
+  <span class="sep"></span>
+  <button id="btn-browse" title="Open server in browser">&#127760; Open in browser</button>
+  <input type="text" id="url-box" readonly value="http://localhost:8080">
+  <span class="sep"></span>
+  <button id="btn-start" class="start" title="Start/Stop server">&#9654; Start</button>
+  <button id="btn-add-folder" title="Add folder to VFS">+ Add Folder</button>
+  <span class="sep"></span>
+  <span id="mode-label">Expert mode</span>
+</div>
+
+<!-- Bandwidth Graph -->
+<canvas id="bw-graph"></canvas>
+
+<!-- Main Split Area -->
+<div id="main-area">
+  <!-- Left: VFS Tree -->
+  <div id="vfs-panel">
+    <div class="panel-title">Virtual File System</div>
+    <div id="vfs-tree"></div>
+  </div>
+  <div id="splitter-v"></div>
+  <!-- Right: Log -->
+  <div id="log-panel">
+    <div class="panel-title">
+      Log
+      <input type="text" id="log-filter" placeholder="Filter..." style="float:right;width:150px;font-size:11px;margin-right:4px">
+    </div>
+    <div id="log-box"></div>
+  </div>
+</div>
+
+<!-- Horizontal Splitter -->
+<div id="splitter-h"></div>
+
+<!-- Bottom: Connections -->
+<div id="conn-panel">
+  <div class="panel-title">Active Connections</div>
+  <table id="conn-table">
+    <thead><tr>
+      <th>IP Address<th>File<th>Status<th>Speed<th>Time Left<th>Progress
+    </tr></thead>
+    <tbody id="conn-body">
+      <tr><td colspan="6" class="empty">No active connections</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Status Bar -->
+<div id="status-bar">
+  <span id="sb-total-in">&#11014; 0 B total in</span>
+  <span class="sb-sep">|</span>
+  <span id="sb-total-out">&#11015; 0 B total out</span>
+  <span class="sb-sep">|</span>
+  <span id="sb-total-speed">0 B/s</span>
+  <span class="sb-sep">|</span>
+  <span id="sb-connections">0 connections</span>
+  <span style="flex:1"></span>
+  <span id="sb-uptime">Up: 0s</span>
+</div>
+
+<!-- Add Folder Modal -->
+<div id="modal-overlay" class="hidden">
+  <div class="modal">
+    <h3>Add Folder to VFS</h3>
+    <div class="form-row">
+      <button id="modal-browse" class="primary">Browse...</button>
+      <span style="margin:0 8px;color:#888">or enter path:</span>
+    </div>
+    <label>Path <input type="text" id="modal-path" placeholder="/absolute/path/to/folder"></label>
+    <label>Name <input type="text" id="modal-name" placeholder="Display name (optional)"></label>
+    <label>Parent <select id="modal-parent"></select></label>
+    <div class="form-buttons">
+      <button id="modal-submit" class="primary">Add</button>
+      <button id="modal-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Node Properties Modal -->
+<div id="props-overlay" class="hidden">
+  <div class="modal">
+    <h3>Properties</h3>
+    <div id="props-info"></div>
+    <label>Comment <textarea id="props-comment" rows="2"></textarea></label>
+    <label>Upload Filter <input type="text" id="props-filter"></label>
+    <fieldset>
+      <legend>Flags</legend>
+      <label><input type="checkbox" id="prop-browsable"> Browsable</label>
+      <label><input type="checkbox" id="prop-archivable"> Archivable</label>
+      <label><input type="checkbox" id="prop-deletable"> Deletable</label>
+      <label><input type="checkbox" id="prop-uploadable"> Uploadable</label>
+      <label><input type="checkbox" id="prop-hidden"> Hidden</label>
+      <label><input type="checkbox" id="prop-dontlog"> Don't Log</label>
+    </fieldset>
+    <div class="form-buttons">
+      <button id="props-save" class="primary">Save</button>
+      <button id="props-remove" class="danger">Remove from VFS</button>
+      <button id="props-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/admin/app.js"></script>
+</body>
+</html>

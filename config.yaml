@@ -1,0 +1,37 @@
+# HFS Go - HTTP File Server Configuration
+# Default config — copy to ~/.config/hfs/config.yaml to customize
+
+server:
+  port: 8080
+  max_connections: 0        # 0 = unlimited
+  max_connections_per_ip: 0
+  max_bandwidth_kbps: 0     # 0 = unlimited
+  max_downloads: 0
+  max_downloads_per_ip: 0
+
+vfs:
+  root: ""                  # real root folder (empty = start empty)
+  tree_file: "vfs.yaml"     # persisted VFS tree, relative to config dir
+
+auth:
+  realm: "HFS"
+  session_timeout: 24h
+  default_admin: ""         # set on first run if no accounts exist
+
+accounts: []
+#  - username: admin
+#    password: "$2a$10$..."  # bcrypt hash
+#    permissions: [admin, upload, delete]
+
+log:
+  file: ""                  # empty = stdout
+  apache_format: false
+  log_uploads: true
+  log_downloads: true
+  log_connections: true
+  log_requests: true
+  log_replies: true
+
+bans: []
+#  - address: "192.168.1.100"
+#    reason: "Automated scan detected"

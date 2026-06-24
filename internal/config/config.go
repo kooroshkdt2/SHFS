@@ -1,0 +1,284 @@
+// Package config provides YAML configuration loading and management for HFS.
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Config holds all HFS configuration.
+type Config struct {
+	Server   ServerConfig   `yaml:"server"`
+	VFS      VFSConfig      `yaml:"vfs"`
+	Auth     AuthConfig     `yaml:"auth"`
+	Accounts []Account      `yaml:"accounts"`
+	Log      LogConfig      `yaml:"log"`
+	Bans     []Ban          `yaml:"bans"`
+
+	mu       sync.RWMutex  `yaml:"-"`
+	filePath string         `yaml:"-"`
+	configDir string        `yaml:"-"`
+}
+
+// ServerConfig holds HTTP server settings.
+type ServerConfig struct {
+	Port               int `yaml:"port"`
+	MaxConnections     int `yaml:"max_connections"`
+	MaxConnectionsPerIP int `yaml:"max_connections_per_ip"`
+	MaxBandwidthKbps   int `yaml:"max_bandwidth_kbps"`
+	MaxDownloads       int `yaml:"max_downloads"`
+	MaxDownloadsPerIP  int `yaml:"max_downloads_per_ip"`
+}
+
+// VFSConfig holds virtual file system settings.
+type VFSConfig struct {
+	Root            string `yaml:"root" json:"root"`                    // real root folder path
+	TreeFile        string `yaml:"tree_file" json:"tree_file"`          // VFS persistence file name
+	AnonymousUpload bool   `yaml:"anonymous_upload" json:"anonymous_upload"` // allow upload without auth
+	UploadEnabled   bool   `yaml:"upload_enabled" json:"upload_enabled"`     // global upload on/off
+}
+
+// AuthConfig holds authentication settings.
+type AuthConfig struct {
+	Realm          string        `yaml:"realm"`
+	SessionTimeout time.Duration `yaml:"session_timeout"`
+	DefaultAdmin   string        `yaml:"default_admin"`
+}
+
+// Account represents a user account.
+type Account struct {
+	Username    string   `yaml:"username" json:"username"`
+	Password    string   `yaml:"password" json:"-"` // bcrypt hash
+	Permissions []string `yaml:"permissions" json:"permissions"`
+	Notes       string   `yaml:"notes,omitempty" json:"notes,omitempty"`
+	Enabled     bool     `yaml:"enabled" json:"enabled"`
+	IsGroup     bool     `yaml:"is_group,omitempty" json:"is_group,omitempty"`
+	Redirect    string   `yaml:"redirect,omitempty" json:"redirect,omitempty"`
+}
+
+// Ban represents an IP ban entry.
+type Ban struct {
+	Address string `yaml:"address" json:"address"`
+	Reason  string `yaml:"reason,omitempty" json:"reason,omitempty"`
+}
+
+// LogConfig holds logging settings.
+type LogConfig struct {
+	File           string `yaml:"file"`
+	ApacheFormat   bool   `yaml:"apache_format"`
+	LogUploads     bool   `yaml:"log_uploads"`
+	LogDownloads   bool   `yaml:"log_downloads"`
+	LogConnections bool   `yaml:"log_connections"`
+	LogRequests    bool   `yaml:"log_requests"`
+	LogReplies     bool   `yaml:"log_replies"`
+}
+
+// Defaults returns a Config with sensible default values.
+func Defaults() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Port:               8080,
+			MaxConnections:     0,
+			MaxConnectionsPerIP: 0,
+			MaxBandwidthKbps:   0,
+			MaxDownloads:       0,
+			MaxDownloadsPerIP:  0,
+		},
+		VFS: VFSConfig{
+			TreeFile:        "vfs.yaml",
+			AnonymousUpload: false,
+			UploadEnabled:   true,
+		},
+		Auth: AuthConfig{
+			Realm:          "HFS",
+			SessionTimeout: 24 * time.Hour,
+		},
+		Log: LogConfig{
+			LogUploads:     true,
+			LogDownloads:   true,
+			LogConnections: true,
+			LogRequests:    true,
+			LogReplies:     true,
+		},
+	}
+}
+
+// ConfigDir returns the platform-specific configuration directory.
+func ConfigDir() string {
+	// XDG_CONFIG_HOME / AppData
+	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
+		return filepath.Join(d, "hfs")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "."
+	}
+	return filepath.Join(home, ".config", "hfs")
+}
+
+// Load reads configuration from the standard location.
+// It creates a default config if none exists.
+func Load() (*Config, error) {
+	dir := ConfigDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("create config dir: %w", err)
+	}
+
+	cfgPath := filepath.Join(dir, "config.yaml")
+	return LoadFile(cfgPath)
+}
+
+// LoadFile reads configuration from a specific path.
+func LoadFile(path string) (*Config, error) {
+	cfg := Defaults()
+	cfg.filePath = path
+	cfg.configDir = filepath.Dir(path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Write defaults and continue
+			if err := cfg.Save(); err != nil {
+				return cfg, fmt.Errorf("save defaults: %w", err)
+			}
+			return cfg, nil
+		}
+		return cfg, fmt.Errorf("read config: %w", err)
+	}
+
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return cfg, fmt.Errorf("parse config: %w", err)
+	}
+
+	// Ensure defaults for zero values
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 8080
+	}
+	if cfg.Auth.Realm == "" {
+		cfg.Auth.Realm = "HFS"
+	}
+	if cfg.Auth.SessionTimeout == 0 {
+		cfg.Auth.SessionTimeout = 24 * time.Hour
+	}
+	if cfg.VFS.TreeFile == "" {
+		cfg.VFS.TreeFile = "vfs.yaml"
+	}
+	if cfg.Log.LogUploads || cfg.Log.LogDownloads || cfg.Log.LogConnections || cfg.Log.LogRequests || cfg.Log.LogReplies {
+		// defaults for logging are fine
+	}
+
+	return cfg, nil
+}
+
+// Save writes the current configuration to disk.
+func (c *Config) Save() error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if c.filePath == "" {
+		c.filePath = filepath.Join(c.configDir, "config.yaml")
+	}
+
+	if err := os.WriteFile(c.filePath, data, 0644); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+	return nil
+}
+
+// ConfigDir returns the directory containing the configuration file.
+func (c *Config) GetConfigDir() string {
+	return c.configDir
+}
+
+// AddAccount adds a new account to the configuration.
+func (c *Config) AddAccount(acct Account) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Accounts = append(c.Accounts, acct)
+	return nil
+}
+
+// RemoveAccount removes an account by username.
+func (c *Config) RemoveAccount(username string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, a := range c.Accounts {
+		if a.Username == username {
+			c.Accounts = append(c.Accounts[:i], c.Accounts[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// FindAccount returns an account by username, or nil.
+func (c *Config) FindAccount(username string) *Account {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for i := range c.Accounts {
+		if c.Accounts[i].Username == username {
+			return &c.Accounts[i]
+		}
+	}
+	return nil
+}
+
+// HasPermission checks if an account has a specific permission.
+func (a *Account) HasPermission(perm string) bool {
+	for _, p := range a.Permissions {
+		if p == "admin" || p == perm {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAdmin returns true if the account has admin permissions.
+func (a *Account) IsAdmin() bool {
+	return a.HasPermission("admin")
+}
+
+// AddBan adds an IP ban.
+func (c *Config) AddBan(ban Ban) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Bans = append(c.Bans, ban)
+}
+
+// RemoveBan removes a ban by address.
+func (c *Config) RemoveBan(address string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, b := range c.Bans {
+		if b.Address == address {
+			c.Bans = append(c.Bans[:i], c.Bans[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// IsBanned checks if an address is banned.
+func (c *Config) IsBanned(address string) (bool, string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, b := range c.Bans {
+		if b.Address == address {
+			return true, b.Reason
+		}
+	}
+	return false, ""
+}

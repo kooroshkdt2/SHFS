@@ -1,0 +1,27 @@
+# Binaries
+hfs
+hfs-fyne
+hfs-headless
+hfs-desktop
+build/
+*.exe
+*.app
+
+# Go
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Wails
+wailsjs/
+frontend/wailsjs/

@@ -1,0 +1,20 @@
+{
+  "name": "hfs",
+  "outputfilename": "hfs",
+  "frontend:dir": "frontend",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "HFS Go",
+    "email": ""
+  },
+  "info": {
+    "companyName": "HFS Go",
+    "productName": "HFS",
+    "productVersion": "0.1.0",
+    "copyright": "GPLv2",
+    "comments": "HTTP File Server - Cross-platform rewrite in Go"
+  }
+}

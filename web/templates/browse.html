@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HFS {{.Folder.Name}}</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;margin:0;padding:0;background:#f0f2f5;color:#333;min-height:100vh;display:flex}
+#panel{width:260px;background:#fff;padding:1em;border-right:1px solid #ddd;overflow-y:auto;flex-shrink:0}
+#panel fieldset{border:1px solid #ddd;border-radius:6px;padding:0.8em;margin-bottom:1em}
+#panel legend{font-weight:bold;color:#47c;padding:0 0.3em}
+#panel a,#panel button{color:#47c;text-decoration:none;font-size:13px}
+#panel button{display:block;width:100%;margin:0.2em 0;padding:0.3em 0.6em;background:#47c;color:#fff;border:0;border-radius:4px;cursor:pointer}
+#panel button:hover{background:#369}
+#main{flex:1;padding:1em 2em;overflow-y:auto}
+h1{font-size:1.3em;color:#47c;margin:0 0 0.5em 0}
+#breadcrumbs{margin-bottom:1em;font-size:13px}
+#breadcrumbs a{color:#47c;text-decoration:none}
+#breadcrumbs a:hover{text-decoration:underline}
+#breadcrumbs span{color:#999}
+#stats{margin-bottom:1em;color:#666;font-size:13px}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+th{background:#47c;color:#fff;padding:0.6em 1em;text-align:left;font-weight:600}
+th a{color:#fff;text-decoration:none}
+th a:hover{text-decoration:underline}
+td{padding:0.5em 1em;border-top:1px solid #eee}
+tr:hover{background:#f8f9fb}
+tr:nth-child(even){background:#fafbfc}
+tr:nth-child(even):hover{background:#f0f2f5}
+td.nosize{text-align:center;font-style:italic;color:#999}
+td a{color:#47c;text-decoration:none}
+td a:hover{text-decoration:underline}
+.comment{color:#999;font-size:12px;margin-top:0.2em}
+.flag{background:#e74c3c;color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;margin-right:4px}
+#search{margin-bottom:1em}
+#search input{padding:0.4em 0.8em;border:1px solid #ddd;border-radius:4px;width:250px}
+#search button{padding:0.4em 0.8em;background:#47c;color:#fff;border:0;border-radius:4px;cursor:pointer}
+#upload-form{margin-top:1em;padding:1em;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.08);display:none}
+.hidden{display:none}
+@media (max-width:768px){body{flex-direction:column}#panel{width:100%;border-right:0;border-bottom:1px solid #ddd}}
+</style>
+</head>
+<body>
+
+<div id="panel">
+    <fieldset>
+        <legend>Folder</legend>
+        <div id="breadcrumbs">
+            {{range .Breadcrumbs}}
+                {{if .Last}}
+                    <span>{{.Name}}</span>
+                {{else}}
+                    <a href="{{.URL}}">{{.Name}}</a> /
+                {{end}}
+            {{end}}
+        </div>
+        <div id="stats">
+            {{.NumFolders}} folders, {{.NumFiles}} files<br>
+            {{.TotalSize}}
+        </div>
+    </fieldset>
+
+    {{if .User}}
+    <fieldset>
+        <legend>User</legend>
+        <p>{{.User}}</p>
+        <a href="/~login?logout=1">Logout</a>
+    </fieldset>
+    {{else}}
+    <fieldset>
+        <legend>Login</legend>
+        <a href="/~login">Login</a>
+    </fieldset>
+    {{end}}
+
+    <fieldset>
+        <legend>Actions</legend>
+        {{if .CanUpload}}
+        <button onclick="document.getElementById('upload-form').style.display='block'">Upload Files</button>
+        {{end}}
+        {{if .CanArchive}}
+        <button onclick="location.href='{{.URL}}?mode=archive'">Download as TAR</button>
+        {{end}}
+        <button onclick="location.href=location.href">Refresh</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>Server Info</legend>
+        <small>
+        HFS Go v0.1.0<br>
+        Uptime: {{.Uptime}}<br>
+        Time: {{.ServerTime}}
+        </small>
+    </fieldset>
+</div>
+
+<div id="main">
+    {{if .Search}}
+    <p><a href=".">Back to folder</a></p>
+    {{end}}
+
+    <div id="search">
+        <form method="get">
+            <input name="search" value="{{.Search}}" placeholder="Search files...">
+            <button type="submit">Search</button>
+        </form>
+    </div>
+
+    {{if .Items}}
+    <table>
+        <thead>
+            <tr>
+                <th><a href="?sort=n{{if not .SortRev}}&rev=1{{end}}">Name {{if eq .SortBy "n"}}{{if .SortRev}}&#9650;{{else}}&#9660;{{end}}{{end}}</a></th>
+                <th><a href="?sort=s{{if not .SortRev}}&rev=1{{end}}">Size {{if eq .SortBy "s"}}{{if .SortRev}}&#9650;{{else}}&#9660;{{end}}{{end}}</a></th>
+                <th><a href="?sort=t{{if not .SortRev}}&rev=1{{end}}">Modified {{if eq .SortBy "t"}}{{if .SortRev}}&#9650;{{else}}&#9660;{{end}}{{end}}</a></th>
+                <th>Hits</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Items}}
+            <tr>
+                <td>
+                    {{if .IsNew}}<span class="flag">NEW</span>{{end}}
+                    {{if .IsFolder}}
+                        <a href="{{.URL}}">&#128193; {{.Name}}/</a>
+                    {{else}}
+                        <a href="{{.URL}}">&#128196; {{.Name}}</a>
+                    {{end}}
+                    {{if .Comment}}<div class="comment">{{.Comment}}</div>{{end}}
+                </td>
+                {{if .IsFolder}}
+                <td class="nosize">folder</td>
+                {{else}}
+                <td>{{.Size}}</td>
+                {{end}}
+                <td>{{.Modified}}</td>
+                <td>{{.Hits}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p style="font-size:1.5em;color:#999;text-align:center;margin-top:3em">
+        {{if .Search}}No results for "{{.Search}}"{{else}}No files in this folder{{end}}
+    </p>
+    {{end}}
+
+    {{if .CanUpload}}
+    <div id="upload-form">
+        <form method="post" enctype="multipart/form-data">
+            <h2>Upload Files</h2>
+            <input type="file" name="file" multiple style="display:block;margin:0.5em 0">
+            <button type="submit">Upload</button>
+            <button type="button" onclick="document.getElementById('upload-form').style.display='none'">Cancel</button>
+        </form>
+    </div>
+    {{end}}
+</div>
+
+</body>
+</html>
