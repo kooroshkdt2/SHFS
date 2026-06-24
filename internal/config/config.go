@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -142,7 +143,6 @@ func LoadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Write defaults and continue
 			if err := cfg.Save(); err != nil {
 				return cfg, fmt.Errorf("save defaults: %w", err)
 			}
@@ -154,9 +154,21 @@ func LoadFile(path string) (*Config, error) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return cfg, fmt.Errorf("parse config: %w", err)
+	// Parse YAML, with Windows path fallback
+	err = yaml.Unmarshal(data, cfg)
+	if err != nil {
+		// Windows paths like F:\folder break YAML because \ is an escape char.
+		// Try pre-processing: double-up any lone backslashes.
+		fixed := fixWindowsPaths(data)
+		if err2 := yaml.Unmarshal(fixed, cfg); err2 != nil {
+			return cfg, fmt.Errorf("parse config: %w (hint: use forward slashes or single quotes for Windows paths)", err)
+		}
 	}
+
+	// Normalize all path fields after parsing (always replace backslashes)
+	cfg.VFS.Root = strings.ReplaceAll(cfg.VFS.Root, "\\", "/")
+	cfg.VFS.TreeFile = strings.ReplaceAll(cfg.VFS.TreeFile, "\\", "/")
+	cfg.Log.File = strings.ReplaceAll(cfg.Log.File, "\\", "/")
 
 	// Ensure defaults for zero values
 	if cfg.Server.Port == 0 {
@@ -171,11 +183,38 @@ func LoadFile(path string) (*Config, error) {
 	if cfg.VFS.TreeFile == "" {
 		cfg.VFS.TreeFile = "vfs.yaml"
 	}
-	if cfg.Log.LogUploads || cfg.Log.LogDownloads || cfg.Log.LogConnections || cfg.Log.LogRequests || cfg.Log.LogReplies {
-		// defaults for logging are fine
-	}
 
 	return cfg, nil
+}
+
+// fixWindowsPaths pre-processes YAML to handle Windows paths like F:\folder
+// where backslash is treated as an escape character in double-quoted strings.
+func fixWindowsPaths(data []byte) []byte {
+	s := string(data)
+	// Replace single backslashes NOT followed by valid YAML escapes
+	// Valid escapes: \\, \", \n, \t, \r, \b, \f, \/
+	// We double any \ that's followed by a non-escape character (likely a Windows path)
+	// Simplest approach: if we see \" or \\, leave alone. Other \ → \\
+	var result []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			next := s[i+1]
+			switch next {
+			case '\\', '"', 'n', 't', 'r', 'b', 'f', '/', ' ':
+				// Valid YAML escape - keep as-is
+				result = append(result, '\\')
+			default:
+				// Likely a Windows path - double the backslash
+				result = append(result, '\\', '\\')
+				i++ // skip the next char since we handled it
+				result = append(result, next)
+				continue
+			}
+		} else {
+			result = append(result, s[i])
+		}
+	}
+	return result
 }
 
 // Save writes the current configuration to disk.
