@@ -444,17 +444,15 @@ func (ui *UI) setupCloseIntercept() {
 
 	// Add system tray if supported
 	if desk, ok := ui.app.(desktop.App); ok {
-		show := fyne.NewMenuItem("Show", func() { ui.win.Show() })
+		show := fyne.NewMenuItem("Show", func() {
+			ui.win.Show()
+			ui.win.RequestFocus()
+		})
 		quit := fyne.NewMenuItem("Quit", func() { ui.app.Quit() })
 		m := fyne.NewMenu("HFS", show, fyne.NewMenuItemSeparator(), quit)
 		desk.SetSystemTrayMenu(m)
-		desk.SetSystemTrayIcon(resourceHfsIcon())
+		desk.SetSystemTrayIcon(resourceShfsIcon())
 	}
-}
-
-func resourceHfsIcon() fyne.Resource {
-	// Simple blue square icon
-	return theme.FileIcon()
 }
 
 // ---- Save / Restore state ----

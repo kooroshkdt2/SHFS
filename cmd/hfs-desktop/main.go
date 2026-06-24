@@ -64,6 +64,7 @@ func main() {
 	ui.Build()
 	w.SetContent(ui.Content())
 	w.SetMainMenu(ui.BuildMenu())
+	w.SetIcon(desktop.ResourceShfsIcon())
 
 	// Forward server log events to the UI
 	srv.LogFn = func(msg string) {

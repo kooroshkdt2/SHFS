@@ -34,13 +34,13 @@ jobs:
 
       - name: Build headless
         run: |
-          go build -tags headless -ldflags="-s -w" -o shfs-${{ matrix.os }}-${{ matrix.arch }} ./cmd/hfs
-          file shfs-${{ matrix.os }}-${{ matrix.arch }} || true
+          go build -tags headless -ldflags="-s -w" -o shfs-${{ matrix.os }}-${{ matrix.arch }}-headless ./cmd/hfs
+          file shfs-${{ matrix.os }}-${{ matrix.arch }}-headless || true
 
       - uses: actions/upload-artifact@v4
         with:
-          name: shfs-${{ matrix.os }}-${{ matrix.arch }}
-          path: shfs-${{ matrix.os }}-${{ matrix.arch }}
+          name: shfs-${{ matrix.os }}-${{ matrix.arch }}-headless
+          path: shfs-${{ matrix.os }}-${{ matrix.arch }}-headless
 
   # macOS arm64 headless (native runner)
   build-headless-darwin-arm64:
@@ -54,11 +54,11 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
       - run: |
-          GOOS=darwin GOARCH=arm64 go build -tags headless -ldflags="-s -w" -o shfs-darwin-arm64 ./cmd/hfs
+          GOOS=darwin GOARCH=arm64 go build -tags headless -ldflags="-s -w" -o shfs-darwin-arm64-headless ./cmd/hfs
       - uses: actions/upload-artifact@v4
         with:
-          name: shfs-darwin-arm64
-          path: shfs-darwin-arm64
+          name: shfs-darwin-arm64-headless
+          path: shfs-darwin-arm64-headless
 
   # ---- Desktop builds (Fyne GUI) ----
   build-desktop-linux:
@@ -82,12 +82,12 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: |
-          go build -ldflags="-s -w" -o shfs-linux-amd64 ./cmd/hfs-desktop
+          go build -ldflags="-s -w" -o shfs-linux-amd64-desktop ./cmd/hfs-desktop
 
       - uses: actions/upload-artifact@v4
         with:
           name: shfs-linux-amd64-desktop
-          path: shfs-linux-amd64
+          path: shfs-linux-amd64-desktop
 
   build-desktop-windows:
     name: Desktop Windows amd64
@@ -105,12 +105,12 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: |
-          go build -ldflags="-s -w -H windowsgui" -o shfs-windows-amd64.exe ./cmd/hfs-desktop
+          go build -ldflags="-s -w -H windowsgui" -o shfs-windows-amd64-desktop.exe ./cmd/hfs-desktop
 
       - uses: actions/upload-artifact@v4
         with:
           name: shfs-windows-amd64-desktop
-          path: shfs-windows-amd64.exe
+          path: shfs-windows-amd64-desktop.exe
 
   build-desktop-macos:
     name: Desktop macOS
@@ -131,12 +131,12 @@ jobs:
           CGO_ENABLED: 1
           GOARCH: ${{ matrix.arch }}
         run: |
-          go build -ldflags="-s -w" -o shfs-darwin-${{ matrix.arch }} ./cmd/hfs-desktop
+          go build -ldflags="-s -w" -o shfs-darwin-${{ matrix.arch }}-desktop ./cmd/hfs-desktop
 
       - uses: actions/upload-artifact@v4
         with:
           name: shfs-darwin-${{ matrix.arch }}-desktop
-          path: shfs-darwin-${{ matrix.arch }}
+          path: shfs-darwin-${{ matrix.arch }}-desktop
 
   # ---- Create GitHub Release on tag push ----
   release:
