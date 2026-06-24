@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,16 +64,21 @@ type Breadcrumb struct {
 
 // handleBrowse handles the main URL space: folder listings and file downloads.
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
+	// Decode URL-encoded path (spaces, special chars)
 	urlPath := r.URL.Path
+	decodedPath, err := url.PathUnescape(urlPath)
+	if err != nil {
+		decodedPath = urlPath // fallback to raw path
+	}
 
 	// Check for static assets for the browse UI
-	if strings.HasPrefix(urlPath, "/~") {
+	if strings.HasPrefix(decodedPath, "/~") {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Find the VFS node
-	node := s.vfs.FindByURL(urlPath)
+	// Find the VFS node using decoded path
+	node := s.vfs.FindByURL(decodedPath)
 	s.IncHits()
 
 	// If not found
@@ -82,8 +88,8 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// For folders without trailing slash, redirect
-	if node.IsFolder() && !strings.HasSuffix(r.URL.Path, "/") && r.URL.Path != "" {
-		http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
+	if node.IsFolder() && !strings.HasSuffix(decodedPath, "/") && decodedPath != "" {
+		http.Redirect(w, r, decodedPath+"/", http.StatusMovedPermanently)
 		return
 	}
 

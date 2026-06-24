@@ -440,23 +440,23 @@ func (ui *UI) BuildMenu() *fyne.MainMenu {
 func (ui *UI) setupCloseIntercept() {
 	ui.win.SetCloseIntercept(func() {
 		ui.win.Hide()
-		ui.log("HFS minimized to tray. Use system tray to restore or quit.")
+		ui.log("Minimized to tray. Use tray menu to restore.")
 	})
+}
 
-	// Add system tray if supported (AFTER window is ready)
+// SetupTray sets up the system tray AFTER the window is shown.
+// Called with a delay to avoid Windows auto-hide behavior.
+func (ui *UI) SetupTray() {
 	if desk, ok := ui.app.(desktop.App); ok {
 		ui.deskApp = desk
-		show := fyne.NewMenuItem("Show", func() {
+		show := fyne.NewMenuItem("Show Window", func() {
 			ui.win.Show()
 			ui.win.RequestFocus()
 		})
-		quit := fyne.NewMenuItem("Quit", func() { ui.app.Quit() })
+		quit := fyne.NewMenuItem("Quit SHFS", func() { ui.app.Quit() })
 		m := fyne.NewMenu("SHFS", show, fyne.NewMenuItemSeparator(), quit)
 		desk.SetSystemTrayMenu(m)
 		desk.SetSystemTrayIcon(ResourceShfsIcon())
-		// Ensure window stays visible after tray setup (Windows may auto-hide)
-		ui.win.Show()
-		ui.win.RequestFocus()
 	}
 }
 

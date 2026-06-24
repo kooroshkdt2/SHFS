@@ -117,9 +117,13 @@ func main() {
 		}
 	}()
 
-	// Force window visible (counters any tray-induced auto-hide on Windows)
+	// Show window first, then set up tray after a delay (avoids Windows auto-hide)
 	w.Show()
 	w.RequestFocus()
+	go func() {
+		time.Sleep(1 * time.Second)
+		ui.SetupTray()
+	}()
 	w.ShowAndRun()
 
 	log.Println("Shutting down...")
