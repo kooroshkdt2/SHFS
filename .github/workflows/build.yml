@@ -70,6 +70,8 @@ jobs:
             libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev
 
       - name: Build desktop
+        env:
+          CGO_ENABLED: 1
         run: |
           go build -ldflags="-s -w" -o shfs-linux-amd64 ./cmd/hfs-desktop
 
@@ -87,6 +89,8 @@ jobs:
         with: { go-version: '1.22' }
 
       - name: Build desktop
+        env:
+          CGO_ENABLED: 1
         run: |
           go build -ldflags="-s -w -H windowsgui" -o shfs-windows-amd64.exe ./cmd/hfs-desktop
 
@@ -108,6 +112,7 @@ jobs:
 
       - name: Build desktop
         env:
+          CGO_ENABLED: 1
           GOARCH: ${{ matrix.arch }}
         run: |
           go build -ldflags="-s -w" -o shfs-darwin-${{ matrix.arch }} ./cmd/hfs-desktop
