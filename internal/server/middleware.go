@@ -31,6 +31,11 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(wr, r)
 
+		// Track bytes sent for bandwidth statistics
+		if wr.bytesSent > 0 {
+			s.AddBytesSent(wr.bytesSent)
+		}
+
 		if s.cfg.Log.LogRequests {
 			duration := time.Since(start)
 			log.Printf("%s %s %s %d %s",
@@ -57,15 +62,22 @@ func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter wraps http.ResponseWriter to capture the status code.
+// responseWriter wraps http.ResponseWriter to capture status code and byte count.
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
+	bytesSent  int64
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	n, err := rw.ResponseWriter.Write(b)
+	rw.bytesSent += int64(n)
+	return n, err
 }
 
 // Flush implements the http.Flusher interface.

@@ -313,6 +313,7 @@ func (ui *UI) buildLog() {
 	ui.logBox = widget.NewMultiLineEntry()
 	ui.logBox.Wrapping = fyne.TextWrapWord
 	ui.logBox.TextStyle = fyne.TextStyle{Monospace: true}
+	ui.logBox.Disable() // read-only
 }
 
 // ---- Connections (matching original connBox with columns) ----
@@ -379,7 +380,8 @@ func (ui *UI) buildLayout() {
 	)
 	vfsPanel := container.NewBorder(vfsHeader, vfsActions, nil, nil, ui.vfsTree)
 	logHeader := widget.NewLabelWithStyle("Log", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	logPanel := container.NewBorder(logHeader, nil, nil, nil, ui.logBox)
+	logScroll := container.NewVScroll(ui.logBox)
+	logPanel := container.NewBorder(logHeader, nil, nil, nil, logScroll)
 
 	ui.centerSplit = container.NewHSplit(vfsPanel, logPanel)
 	ui.centerSplit.SetOffset(ui.cfg.Layout.VSFSplit)
@@ -646,10 +648,15 @@ func (ui *UI) log(msg string) {
 	now := time.Now().Format("15:04:05")
 	line := now + "  " + msg + "\n"
 	ui.logBox.SetText(ui.logBox.Text + line)
+
+	// Trim old lines (keep last 500)
 	if strings.Count(ui.logBox.Text, "\n") > 500 {
 		idx := strings.Index(ui.logBox.Text, "\n")
 		if idx > 0 { ui.logBox.SetText(ui.logBox.Text[idx+1:]) }
 	}
+
+	// Auto-scroll to bottom
+	ui.logBox.CursorRow = strings.Count(ui.logBox.Text, "\n")
 }
 
 // ---- Poll loop ----
@@ -664,11 +671,20 @@ func (ui *UI) pollLoop() {
 		stats := ui.srv.GetStats()
 		conns := ui.srv.GetConnections()
 		outNow, inNow := stats.BytesSent, stats.BytesRecv
-		spd := int64(0)
-		if lastOut > 0 || lastIn > 0 { spd = ((outNow - lastOut) + (inNow - lastIn)) / 2 }
+
+		// Calculate deltas since last tick (2s)
+		deltaOut := int64(0)
+		deltaIn := int64(0)
+		if lastOut > 0 || lastIn > 0 {
+			deltaOut = outNow - lastOut
+			deltaIn = inNow - lastIn
+		}
+		// Speed = bytes/sec (deltas are over 2s, so divide by 2)
+		spd := (deltaOut + deltaIn) / 2
 		lastOut, lastIn = outNow, inNow
 
-		ui.graphData = append(ui.graphData, graphPoint{out: outNow - lastOut, in: inNow - lastIn})
+		// Graph uses raw deltas per tick
+		ui.graphData = append(ui.graphData, graphPoint{out: deltaOut, in: deltaIn})
 		if len(ui.graphData) > 120 { ui.graphData = ui.graphData[1:] }
 
 		gc := make([]graphPoint, len(ui.graphData))
@@ -686,11 +702,9 @@ func (ui *UI) pollLoop() {
 
 			// Update tray icon with live bandwidth bars
 			if ui.deskApp != nil && spd > 0 {
-				bwOut := outNow - lastOut
-				bwIn := inNow - lastIn
 				maxBW := spd * 2
 				if maxBW < 1024 { maxBW = 1024 }
-				icon := BandwidthTrayIcon(bwOut, bwIn, maxBW)
+				icon := BandwidthTrayIcon(deltaOut, deltaIn, maxBW)
 				ui.deskApp.SetSystemTrayIcon(icon)
 			}
 
