@@ -31,3 +31,5 @@ shfs-windows-*
 
 # Local Mesa/RDP build folder
 shfs-windows-desktop-mesa/
+hfs-configs/
+shfs-linux-test

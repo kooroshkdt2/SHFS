@@ -160,10 +160,20 @@ func main() {
 		}
 	}()
 
-	// Show the window
+	// Show the window first, then set up tray after a short delay.
+	// On Windows, setting up the tray before the window is shown can
+	// cause the window to start hidden (auto-minimize to tray behavior).
 	debug.Debug("main: showing window")
 	w.Show()
 	w.RequestFocus()
+	go func() {
+		time.Sleep(2 * time.Second)
+		debug.Debug("main: setting up tray (delayed)")
+		fyne.DoAndWait(func() {
+			ui.SetupTray()
+			debug.Debug("main: tray setup complete")
+		})
+	}()
 
 	debug.Debug("main: entering event loop (ShowAndRun)")
 	w.ShowAndRun()

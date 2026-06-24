@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image/color"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -28,6 +30,7 @@ import (
 type UI struct {
 	win     fyne.Window
 	app     fyne.App
+	deskApp desktop.App
 	srv     *server.Server
 	cfg     *config.Config
 	tree    *vfs.Tree
@@ -98,6 +101,7 @@ func (ui *UI) Build() {
 	ui.buildStatusBar()
 	ui.buildLayout()
 	ui.setupDragDrop()
+	ui.setupCloseIntercept()
 	ui.setupKeyboardShortcuts()
 
 	// Save VFS tree on startup
@@ -433,6 +437,54 @@ func (ui *UI) BuildMenu() *fyne.MainMenu {
 	return fyne.NewMainMenu(settingsMenu, helpMenu)
 }
 
+// ---- Tray (minimize to tray on close) ----
+func (ui *UI) setupCloseIntercept() {
+	ui.win.SetCloseIntercept(func() {
+		if ui.deskApp != nil {
+			ui.win.Hide()
+			ui.log("Minimized to tray. Right-click tray icon to restore or quit.")
+		} else {
+			ui.running = false
+			ui.win.Close()
+		}
+	})
+}
+
+// SetupTray initializes the system tray. Safe to call on systems without
+// tray support — recovers from panics and skips when D-Bus is unavailable.
+func (ui *UI) SetupTray() {
+	defer func() {
+		if r := recover(); r != nil {
+			ui.log(fmt.Sprintf("System tray not available: %v", r))
+			ui.deskApp = nil
+		}
+	}()
+
+	// On Linux, check that D-Bus is available. systray requires D-Bus
+	// and will panic on shutdown (nativeEnd -> dbus.Conn.Close on nil)
+	// if initialized without a desktop session bus.
+	if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
+		// No D-Bus — skip tray (WSL, headless, SSH, some VMs)
+		ui.log("No D-Bus session — system tray disabled")
+		return
+	}
+
+	if desk, ok := ui.app.(desktop.App); ok {
+		ui.deskApp = desk
+		show := fyne.NewMenuItem("Show Window", func() {
+			ui.win.Show()
+			ui.win.RequestFocus()
+		})
+		quit := fyne.NewMenuItem("Quit SHFS", func() {
+			ui.running = false
+			ui.win.Close()
+		})
+		m := fyne.NewMenu("SHFS", show, fyne.NewMenuItemSeparator(), quit)
+		desk.SetSystemTrayMenu(m)
+		desk.SetSystemTrayIcon(ResourceShfsIcon())
+	}
+}
+
 // ---- Save / Restore state ----
 func (ui *UI) saveState() {
 	path := ui.cfg.VFS.TreeFile
@@ -604,6 +656,16 @@ func (ui *UI) pollLoop() {
 			ui.connData = conns
 			ui.connList.Refresh()
 			ui.redrawGraph(gc)
+
+			// Update tray icon with live bandwidth bars
+			if ui.deskApp != nil && spd > 0 {
+				bwOut := outNow - lastOut
+				bwIn := inNow - lastIn
+				maxBW := spd * 2
+				if maxBW < 1024 { maxBW = 1024 }
+				icon := BandwidthTrayIcon(bwOut, bwIn, maxBW)
+				ui.deskApp.SetSystemTrayIcon(icon)
+			}
 		})
 	}
 }
